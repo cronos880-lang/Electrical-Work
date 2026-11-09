@@ -11,10 +11,32 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 from page_layout import paper_height,svg_frame,title_block_geometry
 
-FORMAT = 'electrical-work'
+LEGACY_FORMAT = 'electrical-work'
+LEGACY_COMPACT_FORMAT = 'electrical-work-compact'
+FORMAT = 'electrical-work-compact-v2'
 FILE_VERSION = 1
 PAGE_W, PAGE_H = 1280, 900
-GRID = 20
+GRID = 10
+# New designs use a physical 70% symbol geometry; old files retain 100%.
+COMPACT_SCALE = 0.70
+SUPPORTED_DRAW_SCALES = (1.0, COMPACT_SCALE)
+# A strict 70% horizontal reduction makes the contact poles too close for
+# readable L1/L2/L3/N references. Keep a minimum 20-unit pitch for multipoles.
+MIN_PITCH_KINDS = frozenset({
+    'contactor_3p','thermal_3p','breaker_3p','motor_protector_3p',
+    'breaker_2p','differential_2p','differential_4p',
+    'pushbutton_double','motor_3ph','motor_1ph',
+})
+
+
+def _lateral_scale(item):
+    if item.get('compact_geometry',1)<2:return COMPACT_SCALE
+    kind=item['kind']
+    if kind=='breaker_4p':return 0.5  # 120 -> 60 units; four poles at 20.
+    if kind in MIN_PITCH_KINDS:return 1.0
+    return COMPACT_SCALE
+
+
 SYMBOL_NAMES = {
     'contact_no': 'Contacto NA', 'contact_nc': 'Contacto NC',
     'switch_horizontal_no': 'Interruptor · contacto abierto (horizontal)',
@@ -141,6 +163,30 @@ def annotation_positions(item):
     """
     kind=item['kind']
     if kind in ('text','image'):return []
+    scale=float(item.get('draw_scale',1.0))
+    if scale!=1.0:
+        original=dict(item);original.pop('draw_scale',None)
+        old=annotation_positions(original)
+        offsets=item.get('annotation_offsets') or {}
+        # Draw compact texts a little smaller, but keep real print height near
+        # 2 mm, independently of the zoom.  Multi-pole labels must not overlap.
+        adjusted=[(k,_scale_annotation_shape(item,shape,scale)) for k,shape in old]
+        if kind in ('plc_input','plc_output') and item.get('compact_geometry',1)>=2:
+            # Situar I0.0 / Q0.0 dentro de la banda de cabecera compacta y
+            # DI/DO en el centro del cuerpo. El offset manual se conserva.
+            corrected=[]
+            for key,shape in adjusted:
+                if key in ('address','signal'):
+                    _,_,_,value,sz,color,*rest=shape
+                    off=offsets.get(key,[0,0])
+                    if not (isinstance(off,(tuple,list)) and len(off)==2):off=[0,0]
+                    dx,dy=_rotate(off[0]*scale, off[1]*scale,item.get('rotation',0))
+                    ax,ay=_rotate(0,-15 if key=='address' else 10,item.get('rotation',0))
+                    shape=('textcenter',round(item['x']+ax+dx,3),round(item['y']+ay+dy,3),
+                           value,10 if key=='address' else 12,color,*rest)
+                corrected.append((key,shape))
+            return corrected
+        return _compact_annotation_layout(item,adjusted,offsets)
     x,y=item['x'],item['y']
     ang=item.get('rotation',0)
     offsets=item.get('annotation_offsets',{})
@@ -263,14 +309,21 @@ def new_id():
 
 def new_document():
     return {'format': FORMAT, 'version': FILE_VERSION, 'title': 'Esquema sin título',
-            'elements': [], 'wires': [], 'page': {'width': PAGE_W, 'height': PAGE_H}}
+            'elements': [], 'wires': [], 'drawing_scale': COMPACT_SCALE,
+            'page': {'width': PAGE_W, 'height': PAGE_H}}
 
 
-def make_symbol(kind, x, y, label=None, rotation=0, plc_inputs=8, plc_outputs=8, selector_positions=3):
+def make_symbol(kind, x, y, label=None, rotation=0, plc_inputs=8, plc_outputs=8,
+                selector_positions=3, draw_scale=1.0):
     if kind not in SYMBOL_NAMES:
         raise ValueError(f'Símbolo desconocido: {kind}')
+    if float(draw_scale) not in SUPPORTED_DRAW_SCALES:
+        raise ValueError('Escala de símbolo no permitida.')
     item={'id':new_id(), 'kind':kind, 'x':snap(x), 'y':snap(y),
           'rotation':int(rotation)%360,'label':label or ''}
+    if draw_scale != 1.0:
+        item['draw_scale']=float(draw_scale)
+        item['compact_geometry']=2  # V0.1 projects keep original port positions.
     if kind in ('directional_terminal','directional_terminal_in'):
         item.update(direction_page='')
     if kind=='selector_multi':
@@ -605,6 +658,19 @@ def port_positions(item):
         local=[(-12,-40),(12,-40),(-18,40),(0,40),(18,40)]
     else:
         local=[(0,-40),(0,40)]
+    scale=float(item.get('draw_scale',1.0))
+    if scale not in SUPPORTED_DRAW_SCALES:
+        raise ValueError('Escala del elemento no admitida.')
+    # For compact items snap each rotated local port to the 10-unit drawing grid.
+    # A drawn line and its wire endpoint must land on precisely the same coordinate.
+    if scale!=1.0 and item.get('compact_geometry',1)<2:
+        return [(int(item['x']+snap(_rotate(a,b,item.get('rotation',0))[0]*scale)),
+                 int(item['y']+snap(_rotate(a,b,item.get('rotation',0))[1]*scale))) for a,b in local]
+    if scale!=1.0:
+        lateral=_lateral_scale(item)
+        return [(int(item['x']+_rotate(snap(a*lateral),snap(b*scale),item.get('rotation',0))[0]),
+                 int(item['y']+_rotate(snap(a*lateral),snap(b*scale),item.get('rotation',0))[1]))
+                for a,b in local]
     return [(int(item['x']+_rotate(a,b,item.get('rotation',0))[0]),
              int(item['y']+_rotate(a,b,item.get('rotation',0))[1])) for a,b in local]
 
@@ -643,21 +709,26 @@ def _retarget_wire_endpoint(points, idx, new):
 
 
 def _update_wires_at_ports(doc,old_ports,new_ports):
-    for old,new in zip(old_ports,new_ports):
-        for wire in doc['wires']:
-            # Guardar índices antes de insertar nuevos codos.
-            indices=[idx for idx in (0,len(wire['points'])-1) if tuple(wire['points'][idx])==old]
-            for idx in reversed(indices):
+    """Update original wire endpoints exactly once on move or rotation.
+
+    Never iterate live coordinates over all poles: a new port can coincide
+    with the OLD location of the adjacent pole (especially after rotation),
+    which previously caused the same cable to be displaced repeatedly.
+    """
+    mapping=dict(zip(old_ports,new_ports))
+    for wire in doc['wires']:
+        pts=wire['points']
+        original=((tuple(pts[0]),0),(tuple(pts[-1]),-1))
+        changes=[(idx,mapping[old]) for old,idx in original if old in mapping and old!=mapping[old]]
+        # End then start: _retarget_wire_endpoint may create extra corners.
+        for idx,point in changes[::-1]:
+            if wire.get('mode')=='straight':
+                wire['points'][idx]=list(point)
+            elif wire.get('mode')=='rectangle':
+                continue
+            else:
                 target=0 if idx==0 else len(wire['points'])-1
-                if wire.get('mode')=='straight':
-                    # La recta libre sigue siendo recta al mover el terminal.
-                    wire['points'][target]=list(new)
-                elif wire.get('mode')=='rectangle':
-                    # El rectángulo es una figura rígida; no deformarlo cuando
-                    # se mueve el símbolo al que toca uno de sus vértices.
-                    continue
-                else:
-                    _retarget_wire_endpoint(wire['points'],target,new)
+                _retarget_wire_endpoint(wire['points'],target,point)
 
 
 def move_element(doc, item_id, x, y):
@@ -675,12 +746,14 @@ def rotate_element(doc, item_id, direction=1):
     _update_wires_at_ports(doc,old_ports,port_positions(item))
 
 def validate_document(obj):
-    if not isinstance(obj,dict) or obj.get('format')!=FORMAT:
+    if not isinstance(obj,dict) or obj.get('format') not in (FORMAT,LEGACY_FORMAT,LEGACY_COMPACT_FORMAT):
         raise ValueError('El archivo no es un proyecto Electrical Work.')
     if obj.get('version')!=FILE_VERSION:
         raise ValueError('Versión de proyecto incompatible.')
     if not isinstance(obj.get('title'),str) or len(obj['title'])>200:
         raise ValueError('Título inválido.')
+    if float(obj.get('drawing_scale',1.0)) not in SUPPORTED_DRAW_SCALES:
+        raise ValueError('Escala de hoja incompatible.')
     page=obj.get('page',{})
     if not isinstance(page,dict) or page.get('width')!=PAGE_W or page.get('height')!=PAGE_H:
         raise ValueError('Tamaño de hoja no compatible en esta versión.')
@@ -693,6 +766,8 @@ def validate_document(obj):
             raise ValueError('Elemento no reconocido.')
         if not isinstance(item.get('label'),str) or len(item['label'])>240:
             raise ValueError('Etiqueta inválida.')
+        if float(item.get('draw_scale',1.0)) not in SUPPORTED_DRAW_SCALES:
+            raise ValueError('Escala de elemento inválida.')
         if item['kind']=='text':
             family=item.get('font_family','Arial')
             sz=item.get('font_size',14)
@@ -787,6 +862,8 @@ def _validate_id(item, ids):
 
 
 def save_document(doc, path):
+    doc=deepcopy(doc)
+    doc['format']=FORMAT
     validate_document(doc)
     dst=Path(path)
     payload=json.dumps(doc,indent=2,ensure_ascii=False)+'\n'
@@ -823,6 +900,217 @@ def _shape(kind):
     """Biblioteca vectorial actualizada en V0.35 sin elementos gráficos propietarios."""
     from symbology import symbol_primitives
     return symbol_primitives(kind)
+
+
+def _compact_point(item, x, y, old_ports, new_ports, scale):
+    if item.get('compact_geometry',1)<2:
+        # Preserve pixel-for-pixel V0.1 geometry and its connected cables.
+        x_axis={orig[0]:port[0] for orig,port in zip(old_ports,new_ports)}
+        y_axis={orig[1]:port[1] for orig,port in zip(old_ports,new_ports)}
+        xx=next((newx for oldx,newx in x_axis.items() if abs(x-oldx)<1e-7),None)
+        yy=next((newy for oldy,newy in y_axis.items() if abs(y-oldy)<1e-7),None)
+        return (xx if xx is not None else round(item['x']+(x-item['x'])*scale,3),
+                yy if yy is not None else round(item['y']+(y-item['y'])*scale,3))
+    # Scale in the component's LOCAL coordinates, not along the screen axes.
+    # This preserves every contact's vertical stem through 90° rotations.
+    angle=item.get('rotation',0)
+    ux,uy=_rotate(x-item['x'],y-item['y'],-angle)
+    sx,sy=_rotate(ux*_lateral_scale(item),uy*scale,angle)
+    px,py=item['x']+sx,item['y']+sy
+    for (ax,ay),(bx,by) in zip(old_ports,new_ports):
+        if abs(x-ax)<1e-7 and abs(y-ay)<1e-7:
+            return (bx,by)
+    # Si un conductor sale verticalmente de un borne redondeado a rejilla,
+    # toda su recta usa el mismo eje. Sin esto, PLC y sensores de varios
+    # bornes mostraban segmentos cortos inclinados junto al contorno.
+    x_targets={}
+    y_targets={}
+    for (ax,ay),(bx,by) in zip(old_ports,new_ports):
+        x_targets.setdefault(ax,set()).add(bx)
+        y_targets.setdefault(ay,set()).add(by)
+    for axis,targets in x_targets.items():
+        if abs(x-axis)<1e-7 and len(targets)==1:
+            px=next(iter(targets))
+            break
+    for axis,targets in y_targets.items():
+        if abs(y-axis)<1e-7 and len(targets)==1:
+            py=next(iter(targets))
+            break
+    return (round(px,3),round(py,3))
+
+
+def _compact_shapes(item, shapes):
+    """Scale actual symbol geometry, not its canvas zoom or the page frame.
+
+    The source primitives are always kept at high vector fidelity. Terminals
+    are snapped to GRID and the same coordinates are returned by port_positions.
+    """
+    scale=float(item.get('draw_scale',1.0))
+    if scale==1.0 or item['kind'] in ('text','image'):return shapes
+    raw=dict(item);raw.pop('draw_scale',None)
+    old_ports=port_positions(raw)
+    new_ports=port_positions(item)
+    def pt(a,b):return _compact_point(item,a,b,old_ports,new_ports,scale)
+    out=[]
+    for shape in shapes:
+        typ=shape[0]
+        if typ in ('line','dashline'):
+            out.append((typ,*pt(shape[1],shape[2]),*pt(shape[3],shape[4])))
+        elif typ in ('polygon','filledpolygon'):
+            out.append((typ,[pt(x,y) for x,y in shape[1]]))
+        elif typ in ('circle','dot'):
+            out.append((typ,*pt(shape[1],shape[2]),round(shape[3]*scale,3)))
+        elif typ in ('text','textcenter','textend'):
+            # Symbol-specific glyphs scale down; numerical annotations are
+            # handled separately, with slightly larger typography for print.
+            out.append((typ,*pt(shape[1],shape[2]),shape[3],max(8,round(shape[4]*0.82)),*shape[5:]))
+        else:out.append(shape)
+    return out
+
+
+# All of these families have several equally spaced, independently wired poles.
+# Compacting the contact centres is safe, but their labels need staggering.
+COMPACT_MULTIPOLE = frozenset({
+    'thermal_3p','contactor_3p','breaker_2p','breaker_3p','breaker_4p',
+    'differential_2p','differential_4p','motor_protector_3p',
+    'pushbutton_double','switch_double_horizontal',
+})
+
+
+def _compact_annotation_layout(item, annotations, offsets):
+    """Rotulación técnica de catálogo compacto para todas las familias.
+
+    - Numeración fuera del cuerpo, hacia el exterior de los bornes.
+    - Referencias fuera del perímetro visual (especialmente magnetotérmicos).
+    - Aparatos multipolares: filas alternas cuando el texto no cabe.
+    - Los desplazamientos hechos a mano siempre prevalecen.
+
+    Esta capa NO toca la geometría de conexión ni el valor de las etiquetas.
+    """
+    kind=item['kind']
+    angle=item.get('rotation',0)
+    ports=port_positions(item)
+    bykey=dict(annotations)
+
+    def user_offset(key):
+        off=offsets.get(key,[0,0])
+        if not (isinstance(off,(tuple,list)) and len(off)==2):off=[0,0]
+        return _rotate(off[0]*COMPACT_SCALE,off[1]*COMPACT_SCALE,angle)
+
+    # Bornes: se separa el número del cuerpo, no se imprime sobre el hilo.
+    # Horizontal/selector configurable mantienen su propio reparto especial.
+    custom=('switch_horizontal_no','switch_horizontal_nc',
+            'pushbutton_horizontal_no','pushbutton_horizontal_nc',
+            'changeover_2pos','changeover_multi',
+            'switch_double_horizontal','selector_multi')
+    if kind not in COMPACT_MULTIPOLE and kind not in custom:
+        for i,(px,py) in enumerate(ports):
+            key=f'terminal:{i}'
+            if key not in bykey:continue
+            typ,_,_,value,size,color,*rest=bykey[key]
+            ux,uy=_rotate(px-item['x'],py-item['y'],-angle)
+            if abs(uy)>=abs(ux) or kind.startswith('motor_'):
+                # Para los motores trifásicos todos los bornes están arriba.
+                dy=-7 if uy<0 else 7
+                dx=10
+            else:
+                dx=-10 if ux<0 else 10
+                dy=-7
+            shiftx,shifty=_rotate(dx,dy,angle)
+            offx,offy=user_offset(key)
+            bykey[key]=('textcenter',round(px+shiftx+offx,3),
+                        round(py+shifty+offy,3),value,size,color,*rest)
+
+    if kind in COMPACT_MULTIPOLE and kind!='switch_double_horizontal':
+        count=len(ports)
+        half=count//2
+        # Barrera fotoeléctrica: 2 entradas superiores y 3 bornes inferiores.
+        if kind=='photoelectric_barrier':half=2
+        if count>=4 and half>=2:
+            for upper in (True,False):
+                used=[]
+                indices=range(half) if upper else range(half,count)
+                for i in indices:
+                    key=f'terminal:{i}'
+                    if key not in bykey:continue
+                    typ,_,_,name,size,color,*rest=bykey[key]
+                    px,py=ports[i]
+                    rx,ry=_rotate(px-item['x'],py-item['y'],-angle)
+                    textwidth=max(8,len(name)*size*.60)
+                    left,right=rx-textwidth/2-2,rx+textwidth/2+2
+                    row=0
+                    while row<len(used) and any(left<b and right>a for a,b in used[row]):
+                        row+=1
+                    if row==len(used):used.append([])
+                    used[row].append((left,right))
+                    extra=13+row*13
+                    local_y=ry-extra if upper else ry+extra
+                    # Los números quedan al lado del conductor, no encima.
+                    dx,dy=_rotate(rx+8,local_y,angle)
+                    shiftx,shifty=user_offset(key)
+                    bykey[key]=('textcenter',round(item['x']+dx+shiftx,3),
+                                round(item['y']+dy+shifty,3),name,size,color,*rest)
+
+    # Referencias: apoyar la etiqueta fuera de la silueta real, en lugar
+    # de usar una distancia fija que invade disparadores y cuerpos grandes.
+    if ('reference' in bykey and 'reference' not in offsets
+        and kind not in custom
+        and kind not in ('directional_terminal','directional_terminal_in')):
+        shapes=symbol_shapes(item,include_annotations=False)
+        xx=[]
+        for sh in shapes:
+            if sh[0] in ('line','dashline'):
+                xx.extend((sh[1],sh[3]))
+            elif sh[0] in ('polygon','filledpolygon'):
+                xx.extend(p[0] for p in sh[1])
+            elif sh[0] in ('circle','dot'):
+                xx.extend((sh[1]-sh[3],sh[1]+sh[3]))
+        if xx:
+            typ,_,_,value,size,color,*rest=bykey['reference']
+            if typ=='textend':
+                ax=min(xx)-8
+            elif typ=='text':
+                ax=max(xx)+8
+            else:
+                ax=bykey['reference'][1]
+            bykey['reference']=(typ,round(ax,3),
+                                round(item['y']-5,3),value,size,color,*rest)
+    # Las referencias se desplazan a otra línea cuando coinciden con una
+    # numeración, también con el símbolo girado 90/270 grados. No toca las
+    # etiquetas posicionadas manualmente por el usuario.
+    if 'reference' in bykey and 'reference' not in offsets:
+        def bbox(sh):
+            anchor,xx,yy,value,size,*_=sh
+            width=max(4,len(str(value))*size*.68)
+            if anchor=='textend':return (xx-width,yy-size*.54,xx,yy+size*.54)
+            if anchor=='textcenter':return (xx-width/2,yy-size*.54,xx+width/2,yy+size*.54)
+            return (xx,yy-size*.54,xx+width,yy+size*.54)
+        ref=bykey['reference']
+        oldy=ref[2]
+        obstacles=[bbox(sh) for key,sh in bykey.items() if key!='reference']
+        for change in (0,-15,15,-30,30,-45,45):
+            candidate=(ref[0],ref[1],oldy+change,*ref[3:])
+            a=bbox(candidate)
+            if not any(min(a[2],b[2])-max(a[0],b[0])>1 and
+                       min(a[3],b[3])-max(a[1],b[1])>1 for b in obstacles):
+                bykey['reference']=candidate
+                break
+    return [(key,bykey[key]) for key,_ in annotations]
+
+
+def _scale_annotation_shape(item, shape, scale):
+    typ,x,y,label,size,color,*rest=shape
+    # Printed character height remains legible at 70%, but is no longer
+    # disproportionately large next to small technical contacts.
+    if size>=17:
+        font_size=12
+    elif size>=13:
+        font_size=10
+    else:
+        font_size=9
+    return (typ,round(item['x']+(x-item['x'])*scale,3),
+            round(item['y']+(y-item['y'])*scale,3),label,
+            font_size,color,*rest)
 
 
 def symbol_shapes(item, include_annotations=True):
@@ -862,11 +1150,19 @@ def symbol_shapes(item, include_annotations=True):
             draw_line((xx,bottom),(xx,geo['output_port_y']))
         text_box(geo['brand_box'], item.get('plc_brand','Aqui Marca plc'), 12)
         text_box(geo['model_box'], item.get('plc_model','Modelo del plc'), 12)
+        shapes=_compact_shapes(item,shapes)
         if include_annotations:
             shapes.extend(shape for _,shape in annotation_positions(item))
         return shapes
-    primitives=(__import__('symbology').selector_rotary(item['selector_positions'])
-                if item['kind']=='selector_multi' else _shape(item['kind']))
+    # Los componentes creados en V0.2 mantienen sus PUERTOS originales;
+    # esta revisión solo cambia el aspecto de ciertos cuerpos compactos.
+    from symbology import selector_rotary, compact_symbol_primitives
+    if item['kind']=='selector_multi':
+        primitives=selector_rotary(item['selector_positions'])
+    elif (item.get('draw_scale',1.0)!=1.0 and item.get('compact_geometry',1)>=2):
+        primitives=compact_symbol_primitives(item['kind'])
+    else:
+        primitives=_shape(item['kind'])
     for primitive in primitives:
         typ=primitive[0]
         if typ in ('line','dashline'):
@@ -881,6 +1177,7 @@ def symbol_shapes(item, include_annotations=True):
         elif typ in ('glyph','mark'):
             a,b=pos(primitive[1],primitive[2])
             shapes.append(('textcenter' if typ=='mark' else 'text',a,b,primitive[3],primitive[4],'#1c3145'))
+    shapes=_compact_shapes(item,shapes)
     if include_annotations:
         shapes.extend(shape for _,shape in annotation_positions(item))
     return shapes
@@ -918,6 +1215,8 @@ def export_svg(doc,path,sheet_number=None,sheet_total=None):
             raise ValueError('Número de hoja inválido al exportar.')
     footer=(f'{sheet_number}/{sheet_total}' if sheet_number is not None and sheet_total is not None else '1/1')
     physical_h=paper_height(w)
+    stroke=1.45 if doc.get('drawing_scale',1.0)==COMPACT_SCALE else 2.0
+    dot_radius=3 if stroke<2 else 4
     contents=[f'<?xml version="1.0" encoding="UTF-8"?>',
               f'<svg xmlns="http://www.w3.org/2000/svg" width="297mm" height="210mm" viewBox="0 0 {w} {physical_h:.5f}">',
               '<rect width="100%" height="100%" fill="white" />']
@@ -929,7 +1228,7 @@ def export_svg(doc,path,sheet_number=None,sheet_total=None):
             fmt=el['image_format']
             data=el['image_data']
             contents.append(f'<image x="{el["x"]-iw/2:g}" y="{el["y"]-ih/2:g}" width="{iw}" height="{ih}" preserveAspectRatio="none" href="data:image/{fmt};base64,{data}" />')
-    contents.append('<g stroke="#17324b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">')
+    contents.append(f'<g stroke="#17324b" stroke-width="{stroke}" stroke-linecap="round" stroke-linejoin="round" fill="none">')
     for wire in doc['wires']:
         points=' '.join(f'{x},{y}' for x,y in wire['points'])
         contents.append(f'<polyline points="{points}" />')
@@ -937,7 +1236,7 @@ def export_svg(doc,path,sheet_number=None,sheet_total=None):
         for shape in symbol_shapes(el):
             contents.append(_svg_shape(shape))
     for x,y in junction_points(doc):
-        contents.append(f'<circle cx="{x}" cy="{y}" r="4" fill="#17324b" stroke="none" />')
+        contents.append(f'<circle cx="{x}" cy="{y}" r="{dot_radius}" fill="#17324b" stroke="none" />')
     contents.append('</g>')
     # Cajetín compacto, mismas coordenadas que pantalla y PDF.
     box=title_block_geometry()
@@ -959,6 +1258,8 @@ def export_svg(doc,path,sheet_number=None,sheet_total=None):
 
 def make_demo():
     doc=new_document()
+    # Historic fixture uses its original port positions and wire coordinates.
+    doc['drawing_scale']=1.0
     doc['title']='Ejemplo: mando básico de un relé'
     # Dos ramas; muestra los símbolos, cables ortogonales y etiquetas.
     for kind,x,y,label in [
@@ -999,7 +1300,8 @@ def make_automation_catalog():
     for index,kind in enumerate(kinds):
         col,row=index%5,index//5
         doc['elements'].append(make_symbol(kind,140+col*220,145+row*112,
-                                              DEFAULT_REFS[kind]+str(index+1)))
+                                              DEFAULT_REFS[kind]+str(index+1),
+                                              draw_scale=doc['drawing_scale']))
     return doc
 
 
@@ -1015,7 +1317,7 @@ def new_project(title='Esquema sin título'):
 
 
 def validate_project(project):
-    if not isinstance(project,dict) or project.get('format')!=FORMAT or project.get('version')!=PROJECT_VERSION:
+    if not isinstance(project,dict) or project.get('format') not in (FORMAT,LEGACY_FORMAT,LEGACY_COMPACT_FORMAT) or project.get('version')!=PROJECT_VERSION:
         raise ValueError('El archivo no es un proyecto de varias hojas Electrical Work.')
     title=project.get('title')
     if not isinstance(title,str) or not title.strip() or len(title)>200:
@@ -1062,6 +1364,11 @@ def project_from_document(doc):
 
 
 def save_project(project,path):
+    # A new identifier prevents V0.1 from silently misreading new geometry.
+    project=deepcopy(project)
+    project['format']=FORMAT
+    for doc in project['sheets']:
+        doc['format']=FORMAT
     validate_project(project)
     dst=Path(path)
     payload=json.dumps(project,indent=2,ensure_ascii=False)+'\n'

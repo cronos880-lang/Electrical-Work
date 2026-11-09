@@ -1,4 +1,4 @@
-"""Electrical Work 0.38.3 - editor autónomo de esquemas eléctricos (sin simulación).
+"""Electrical Work Compacto 0.4 - editor autónomo de esquemas eléctricos (sin simulación).
 
 Requisitos: Python 3.9 o superior, Tkinter (incluido normalmente en Windows).
 """
@@ -12,6 +12,8 @@ import os
 import sys
 import tkinter as tk
 from tkinter import ttk
+from collections import OrderedDict
+import quality_render
 from page_layout import paper_height,guide_geometry,GREEN,title_block_geometry
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog
@@ -61,6 +63,8 @@ class ElectricalWorkApp:
         self._plc_brand='' 
         self._plc_model='' 
         self._image_refs=[]
+        self._quality_images=[]
+        self._symbol_cache=OrderedDict()
         self._documentation_window=None
         # El 100% es el tamaño que permite ver la hoja completa.
         # self.zoom se usa únicamente como escala efectiva de dibujo.
@@ -81,7 +85,7 @@ class ElectricalWorkApp:
         self._status_var=tk.StringVar(value='Listo para dibujar')
         self._zoom_var=tk.StringVar(value='100')
         self._selection_var=tk.StringVar(value='Sin selección')
-        root.title('Electrical Work · V0.38.3')
+        root.title('Electrical Work · COMPACTO V0.4')
         root.configure(bg=BG)
         root.geometry('1450x900')
         root.minsize(980,600)
@@ -415,13 +419,13 @@ class ElectricalWorkApp:
 
     def _paint_symbol_preview(self,canvas,kind,fg,bg):
         # Miniatura CAD generada desde la misma geometría del plano.
-        from core import _shape
+        from symbology import compact_symbol_primitives
         factor=.16 if kind in ('selector_multi','switch_double_horizontal',
                                'switch_horizontal_no','switch_horizontal_nc',
                                'pushbutton_horizontal_no','pushbutton_horizontal_nc') else (
                  .18 if kind=='breaker_4p' else (.23 if kind=='pushbutton_double' else (.25 if kind=='coil_solenoid' else .30)))
         def xy(x,y):return 18+x*factor,16+y*factor
-        for primitive in _shape(kind):
+        for primitive in compact_symbol_primitives(kind):
             typ=primitive[0]
             if typ in ('line','dashline'):
                 canvas.create_line(*xy(primitive[1],primitive[2]),
@@ -452,7 +456,7 @@ class ElectricalWorkApp:
         titlebox=tk.Frame(brand,bg=NAVY)
         titlebox.pack(side='left',padx=10,pady=7)
         self._text(titlebox,'ELECTRICAL WORK',12,'bold','#ffffff').pack(anchor='w')
-        self._text(titlebox,'EDITOR DE ESQUEMAS  ·  V0.38.3',8,'normal','#9db2c5').pack(anchor='w')
+        self._text(titlebox,'EDITOR DE ESQUEMAS · COMPACTO 70 % · V0.4',8,'normal','#9db2c5').pack(anchor='w')
         actions=tk.Frame(top,bg=NAVY)
         actions.pack(side='right',padx=(0,12),pady=9)
         for name,command,bg in [
@@ -882,21 +886,26 @@ class ElectricalWorkApp:
             self._history()
             if kind=='selector_multi':
                 count=self._selector_positions
-                extent=(count-1)*20
+                extent=round((count-1)*20*self.doc.get('drawing_scale',1.0))
                 x=snap(max(GRID+extent+16,min(PAGE_W-GRID-extent-16,x)))
                 y=snap(max(100,min(PAGE_H-100,y)))
-                el=make_symbol(kind,x,y,label,selector_positions=count)
+                el=make_symbol(kind,x,y,label,selector_positions=count,
+                               draw_scale=self.doc.get('drawing_scale',1.0))
             elif kind=='plc_module':
                 a,b=self._plc_config
-                template=make_symbol(kind,x,y,label,plc_inputs=a,plc_outputs=b)
+                template=make_symbol(kind,x,y,label,plc_inputs=a,plc_outputs=b,
+                                     draw_scale=self.doc.get('drawing_scale',1.0))
                 geo=plc_geometry(template)
-                x=min(max(GRID-geo['left'],x),PAGE_W-GRID-geo['right'])
-                y=min(max(GRID-geo['top']+30,y),PAGE_H-GRID-geo['bottom']-30)
-                el=make_symbol(kind,x,y,label,plc_inputs=a,plc_outputs=b)
+                factor=template.get('draw_scale',1.0)
+                x=min(max(GRID-geo['left']*factor,x),PAGE_W-GRID-geo['right']*factor)
+                y=min(max(GRID-(geo['top']-30)*factor,y),PAGE_H-GRID-(geo['bottom']+30)*factor)
+                x,y=snap(x),snap(y)
+                el=make_symbol(kind,x,y,label,plc_inputs=a,plc_outputs=b,
+                               draw_scale=self.doc.get('drawing_scale',1.0))
                 el['plc_brand']=self._plc_brand
                 el['plc_model']=self._plc_model
             else:
-                el=make_symbol(kind,x,y,label)
+                el=make_symbol(kind,x,y,label,draw_scale=self.doc.get('drawing_scale',1.0))
             self.doc['elements'].append(el)
             self.selected=('element',el['id'])
             self._changed()
@@ -915,7 +924,8 @@ class ElectricalWorkApp:
             startx,starty=d['start']
             # Movimiento libre, sin ajuste a rejilla; los puertos no cambian.
             ddx,ddy=_rotate(px-startx,py-starty,-item.get('rotation',0))
-            position=[round(d['origin'][0]+ddx),round(d['origin'][1]+ddy)]
+            factor=float(item.get('draw_scale',1.0))
+            position=[round(d['origin'][0]+ddx/factor),round(d['origin'][1]+ddy/factor)]
             current=item.get('annotation_offsets',{}).get(d['key'],[0,0])
             if position!=current:
                 if not d['changed']:
@@ -1183,27 +1193,66 @@ class ElectricalWorkApp:
             messagebox.showwarning('Imagen','La altura excede el límite.',parent=self.root);return
         self._history();item['width']=nw;item['height']=nh;self._changed()
 
+    def _raster_photo(self, key, factory):
+        """Reuse high-DPI antialiased bitmaps across redraws and drags."""
+        if key in self._symbol_cache:
+            result=self._symbol_cache.pop(key)
+            self._symbol_cache[key]=result
+            return result
+        result=factory()
+        if result is None:return None
+        img,left,top=result
+        photo=quality_render.to_tk(img)
+        entry=(photo,left,top)
+        self._symbol_cache[key]=entry
+        while len(self._symbol_cache)>220:
+            self._symbol_cache.popitem(last=False)
+        return entry
+
+    def _draw_quality_symbol(self, shapes, tags, color):
+        if not shapes:return
+        key=('body',round(self.zoom,5),color,repr(shapes))
+        result=self._raster_photo(key,lambda:quality_render.symbol_bitmap(shapes,self.zoom,color))
+        if result is None:
+            for shape in shapes:self._draw_shape(shape,tags,color)
+            return
+        photo,xx,yy=result
+        self._quality_images.append(photo)
+        self.canvas.create_image(self._offset_x+xx,self._offset_y+yy,image=photo,
+                                 anchor='nw',tags=tags)
+
+    def _draw_quality_label(self, shape, tags):
+        key=('label',round(self.zoom,5),repr(shape))
+        result=self._raster_photo(key,lambda:quality_render.label_bitmap(shape,self.zoom))
+        if result is None:
+            self._draw_shape(shape,tags)
+            return
+        photo,xx,yy=result
+        self._quality_images.append(photo)
+        self.canvas.create_image(self._offset_x+xx,self._offset_y+yy,image=photo,
+                                 anchor='nw',tags=tags)
+
     def _draw_shape(self,shape,tags=(), color=INK,width=2):
         typ=shape[0]
         if typ in ('line','dashline'):
             _,x1,y1,x2,y2=shape
             self.canvas.create_line(*self._xy(x1,y1),*self._xy(x2,y2),fill=color,
-                     width=max(1.3,width*self.zoom),capstyle='round',tags=tags,
+                     width=max(1.0,1.55*self.zoom),capstyle='round',tags=tags,
                      dash=(4,3) if typ=='dashline' else ())
         elif typ in ('polygon','filledpolygon'):
             points=[]
             for x,y in shape[1]:points.extend(self._xy(x,y))
             self.canvas.create_polygon(points,fill=color if typ=='filledpolygon' else 'white',outline=color,
-                      width=max(1.3,width*self.zoom),tags=tags)
+                      width=max(1.0,1.55*self.zoom),tags=tags)
         elif typ in ('dot','circle'):
             _,x,y,r=shape;px,py=self._xy(x,y);r*=self.zoom
             self.canvas.create_oval(px-r,py-r,px+r,py+r,
                    fill=color if typ=='dot' else 'white',outline=color,
-                   width=max(1.3,width*self.zoom),tags=tags)
+                   width=max(1.0,1.55*self.zoom),tags=tags)
         elif typ in ('text','textcenter','textend'):
             _,x,y,text,size,fg,*family=shape
             self.canvas.create_text(*self._xy(x,y),text=text,anchor='center' if typ=='textcenter' else 'e' if typ=='textend' else 'w',
-                     fill=fg,font=(family[0] if family else FONT,max(8,int(size*self.zoom))),tags=tags)
+                     fill=fg,font=(family[0] if family else FONT,max(5,round(size*self.zoom))),tags=tags)
 
     def redraw(self):
         if not hasattr(self,'canvas'):return
@@ -1236,12 +1285,16 @@ class ElectricalWorkApp:
         x1,y1=self._xy(PAGE_W,paper_h)
         cv.create_rectangle(x0+3,y0+3,x1+3,y1+3,fill='#d5dfe8',outline='')
         cv.create_rectangle(x0,y0,x1,y1,fill='white',outline='#bacbd7',width=1)
-        for x in range(0,PAGE_W+1,GRID):
-            for y in range(0,PAGE_H+1,GRID):
+        # Visual guide every 20 units at 100%, fine 10-unit grid at high zoom.
+        # Magnetic snapping always uses the exact 10-unit geometry.
+        visual_grid=GRID if self.zoom_percent>=145 else GRID*2
+        for x in range(0,PAGE_W+1,visual_grid):
+            for y in range(0,PAGE_H+1,visual_grid):
                 px,py=self._xy(x,y)
                 cv.create_oval(px-.7,py-.7,px+.7,py+.7,fill='#dee6eb',outline='')
         self._draw_sheet()
         self._image_refs=[]
+        self._quality_images=[]
 
         for item in self.doc['elements']:
             if item['kind']=='image':self._draw_image(item)
@@ -1250,7 +1303,7 @@ class ElectricalWorkApp:
             points=[]
             for px,py in wire['points']:points.extend(self._xy(px,py))
             color=TEAL if sel else INK
-            stroke=max(1.3,2*self.zoom)
+            stroke=max(1.0,1.65*self.zoom)
             cv.create_line(points,fill=color,width=stroke,
                          capstyle='round',joinstyle='round',tags=('drawing',f'wire:{wire["id"]}'))
             if sel:
@@ -1268,9 +1321,10 @@ class ElectricalWorkApp:
                 elif item['kind']=='plc_module':
                     pts=port_positions(item)
                     geo=plc_geometry(item)
-                    left=min([item['x']+geo['left']]+[xx for xx,yy in pts]);right=max([item['x']+geo['right']]+[xx for xx,yy in pts])
-                    top=min([item['y']+plc_geometry(item)['top']]+[yy for xx,yy in pts])
-                    bottom=max(item['y']+plc_geometry(item)['bottom'],max(yy for xx,yy in pts))
+                    factor=item.get('draw_scale',1.0)
+                    left=min([item['x']+geo['left']*factor]+[xx for xx,yy in pts]);right=max([item['x']+geo['right']*factor]+[xx for xx,yy in pts])
+                    top=min([item['y']+geo['top']*factor]+[yy for xx,yy in pts])
+                    bottom=max(item['y']+geo['bottom']*factor,max(yy for xx,yy in pts))
                     x1,y1=self._xy(left-8,top-8);x2,y2=self._xy(right+8,bottom+8)
                     box=(x1,y1,x2,y2)
                 elif item['kind']=='selector_multi':
@@ -1286,15 +1340,22 @@ class ElectricalWorkApp:
                     x2,y2=self._xy(max(a for a,b in pts)+20,max(b for a,b in pts)+10)
                     box=(x1,y1,x2,y2)
                 else:
-                    radius=46*self.zoom if item['kind']!='text' else 12
+                    radius=46*self.zoom*item.get('draw_scale',1.0) if item['kind']!='text' else 12
                     box=(xp-radius*.5,yp-radius,xp+radius*1.6,yp+radius)
                 cv.create_rectangle(*box,outline='#81d5d1',dash=(4,3),width=1.5,tags=tags)
             if item['kind']!='image':
-                for shape in symbol_shapes(item,include_annotations=False):
-                    self._draw_shape(shape,tags,TEAL if selected else INK)
+                body=symbol_shapes(item,include_annotations=False)
+                ink=TEAL if selected else INK
+                if quality_render.AVAILABLE:
+                    self._draw_quality_symbol(body,tags,ink)
+                else:
+                    for shape in body:self._draw_shape(shape,tags,ink)
                 for key,shape in annotation_positions(item):
-                    self._draw_shape(shape,tags+(f'annotation:{item["id"]}:{key}',),
-                                     TEAL if selected else INK)
+                    labeltags=tags+(f'annotation:{item["id"]}:{key}',)
+                    if quality_render.AVAILABLE:
+                        self._draw_quality_label(shape,labeltags)
+                    else:
+                        self._draw_shape(shape,labeltags,ink)
         for x,y in junction_points(self.doc):
             px,py=self._xy(x,y)
             radius=max(2.6,3.7*self.zoom)
@@ -1327,7 +1388,7 @@ class ElectricalWorkApp:
                         preview=make_wire(self.pending_wire,end,self.horizontal_first)
                     coords=[]
                     for a,b in preview['points']:coords.extend(self._xy(a,b))
-                    cv.create_line(coords,fill=TEAL,width=max(1.3,2*self.zoom),dash=(6,4),
+                    cv.create_line(coords,fill=TEAL,width=max(1.0,1.65*self.zoom),dash=(6,4),
                         capstyle='round',joinstyle='round',tags=('wire-overlay',))
                 except ValueError:pass
             sx,sy=self._xy(*self.pending_wire)
@@ -1432,7 +1493,7 @@ class ElectricalWorkApp:
 
     def _update_caption(self):
         name=os.path.basename(self.filepath) if self.filepath else 'Sin guardar'
-        self.root.title(f'Electrical Work · {name}{" *" if self.dirty else ""} · V0.38.3')
+        self.root.title(f'Electrical Work · {name}{" *" if self.dirty else ""} · COMPACTO V0.4')
 
     def return_to_pointer(self,event=None):
         """Esc siempre desactiva la herramienta de dibujo actual."""
@@ -1652,7 +1713,7 @@ class ElectricalWorkApp:
             if count_changed or label!=el.get('label','') or values!=get_terminal_labels(el):
                 self._history()
                 if count_changed:
-                    extent=(count-1)*20
+                    extent=round((count-1)*20*el.get('draw_scale',1.0))
                     # Si se amplía junto al borde, desplazar el selector entero
                     # para mantener los contactos dentro del área imprimible.
                     el['x']=snap(max(GRID+extent+16,min(PAGE_W-GRID-extent-16,el['x'])))
@@ -1712,6 +1773,13 @@ class ElectricalWorkApp:
                 if counts_changed or texts_changed:
                     self._history()
                     el.update(plc_inputs=chosen[0],plc_outputs=chosen[1],plc_brand=chosen[2],plc_model=chosen[3])
+                    if counts_changed:
+                        geom=plc_geometry(el)
+                        factor=el.get('draw_scale',1.0)
+                        el['x']=snap(max(GRID-geom['left']*factor,
+                                         min(PAGE_W-GRID-geom['right']*factor,el['x'])))
+                        el['y']=snap(max(GRID-geom['top']*factor,
+                                         min(PAGE_H-GRID-geom['bottom']*factor,el['y'])))
                     self._changed()
             return
         if el['kind'] in ('plc_input','plc_output'):
@@ -1921,6 +1989,7 @@ class ElectricalWorkApp:
         self._sync_current_sheet()
         num=len(self.project['sheets'])+1
         doc=new_document();doc['title']=f'Hoja {num}'
+        doc['drawing_scale']=self.doc.get('drawing_scale',1.0)
         self.project['sheets'].append(doc)
         self.switch_sheet(num-1)
         self.dirty=True;self._update_caption()

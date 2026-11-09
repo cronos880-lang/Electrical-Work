@@ -1,0 +1,14 @@
+COMPROBACIONES COMPLETADAS — COMPACTO V0.4
+========================================
+- 63 tipos de símbolo, 252 combinaciones de orientación.
+- 728 posiciones de bornes comprobadas sobre la rejilla y coincidentes
+  con sus terminales gráficos.
+- 252 casos con rotulación opcional, sin intersecciones entre etiquetas.
+- Movimiento y giro de 61 componentes con cable conectado: OK.
+- Apertura/guardado de proyecto V0.2 y Bomba Hidraulica: puntos y
+  trazados coincidentes antes y después.
+- Vista de dos hojas A4 con PDF vectorial: generada y revisada.
+- Interfaz gráfica bajo Xvfb: funcionamiento con Pillow y sin Pillow.
+- La prueba final en Windows e impresión física la realiza el usuario.
+
+Nota: este programa dibuja esquemas, no los simula ni verifica su seguridad.

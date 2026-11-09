@@ -380,6 +380,91 @@ def sounder():
     return f
 
 
+
+
+def compact_thermal_3p():
+    """Relé térmico tripolar ópticamente proporcionado a sus contactos.
+
+    Un cuerpo tripolar único y compartimentado reemplaza las tres cajas
+    sobredimensionadas. Conserva EXACTAMENTE los seis extremos (-20/0/20,
+    +/-40) del proyecto y la independencia eléctrica de las tres fases.
+    Los detalles son vectoriales y mantienen la legibilidad en A4.
+    """
+    f=[]
+    for x in (-20,0,20):
+        f += [ln(x,-40,x,-12),ln(x,12,x,40)]
+    f += [rc(-27,-12,27,12),ln(-9,-12,-9,12),ln(9,-12,9,12)]
+    # Signo térmico dentro de cada compartimento, sin crear un puente
+    # eléctrico entre fases.
+    for x in (-20,0,20):
+        f += [ln(x-4,-6,x+3,-6),ln(x+3,-6,x+3,3),ln(x+3,3,x-4,3)]
+    return f
+
+
+def compact_sensor_primitives(kind):
+    """Cuerpo de sensor compacto, diseñado ópticamente en vez de deformado.
+
+    Los bornes no cambian (0,+/-40) y se mantienen NA/NC distinguibles.
+    Tamaño óptico sin escalar: 66 x 34, frente a 88 x 42 anterior.
+    """
+    nc=kind.endswith('_nc')
+    f=[ln(0,-40,0,-17),rc(-33,-17,33,17),ln(0,17,0,40)]
+    if 'inductive' in kind:
+        # Barra y núcleo inductivo al lado izquierdo.
+        f += [fr(-29,-8,-25,8),ln(-27,-11,-27,11)]
+    elif 'capacitive' in kind:
+        # Placas enfrentadas del sensor capacitivo.
+        f += [ln(-29,-9,-29,9),ln(-25,-9,-25,9),
+              ln(-32,-6,-29,-6),ln(-25,6,-22,6)]
+    elif 'magnetic' in kind:
+        # Núcleo magnético en U, abierto hacia el centro.
+        f += [fr(-30,-9,-27,9),fr(-30,-9,-23,-6),fr(-30,6,-23,9)]
+    # Rombo detector central, manteniendo separación respecto al icono
+    # tecnológico y al contacto de salida.
+    f += [ln(-6,0,2,-9),ln(2,-9,10,0),ln(10,0,2,9),ln(2,9,-6,0),
+          ln(2,-6,2,6)]
+    # Contacto real: el NC toca el extremo fijo; NA mantiene luz visible.
+    f += [ln(27,-12,27,-8)]
+    f += [ln(17,9,27 if nc else 23,-8 if nc else -3)]
+    return f
+
+
+def compact_symbol_primitives(kind):
+    """Acabado óptico del catálogo compacto sin cambiar bornes eléctricos.
+
+    Los ajustes son específicos por familia y preservan los puntos de
+    conexión históricos. No cambian símbolos a escala original del editor.
+    """
+    if kind in ('plc_input','plc_output'):
+        f=[rc(-27,-33,27,34),ln(-27,-12,27,-12)]
+        if kind=='plc_input': f.append(ln(0,-60,0,-33))
+        else: f.append(ln(0,34,0,60))
+        return f
+    if kind=='power_supply':
+        return [rc(-40,-40,40,40),
+                ln(-60,-20,-40,-20),ln(-60,20,-40,20),
+                ln(40,-20,60,-20),ln(40,20,60,20),
+                ln(-40,40,40,-40),
+                tx(-16,-15,'~',15),tx(17,14,'=',14),
+                tx(-33,-27,'L',10),tx(-33,27,'N',10),
+                tx(33,-27,'+',10),tx(33,27,'−',10)]
+    if kind=='thermal_3p':
+        return compact_thermal_3p()
+    if kind in ('sensor_inductive_no','sensor_inductive_nc',
+                'sensor_capacitive_no','sensor_capacitive_nc',
+                'sensor_magnetic_no','sensor_magnetic_nc'):
+        return compact_sensor_primitives(kind)
+    if kind=='contactor_3p':
+        f=[]
+        for x in (-20,0,20):
+            f += [ln(x,-40,x,-16),ln(x,-16,x+9,7),
+                  ln(x,16,x+8,16),ln(x,16,x,40),
+                  dl(x+11,8,x+11,23)]
+        f.append(dl(-9,25,31,25))
+        return f
+    return symbol_primitives(kind)
+
+
 def symbol_primitives(kind):
     if kind=='plc_input':
         return [rc(-40,-50,40,50),ln(-40,-25,40,-25),ln(0,-60,0,-50)]

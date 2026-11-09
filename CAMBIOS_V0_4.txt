@@ -1,0 +1,11 @@
+COMPACTO V0.4 — CORRECCIÓN DE DESPROPORCIONES
+===========================================
+
+1. Relé térmico tripolar compacto: cuerpo conjunto 54 x 24 unidades antes de
+   la reducción vertical 70 %, en vez de tres resistencias zigzag de 14 x 28.
+2. Seis sensores NA/NC: marco 66 x 34 unidades antes de aplicar el 70 %,
+   frente a 88 x 42. Conservan símbolos interiores distintos y legibles.
+3. Los puertos eléctricos, el cableado y la escala del 70 % no cambian.
+4. Se incluyen comparativa V0.3/V0.4 y ejemplo editable/PDF de dos hojas.
+5. Compatibilidad comprobada con proyectos compactos y legacy; GUI con y sin
+   Pillow, PDF A4 y 63 símbolos en cuatro orientaciones.

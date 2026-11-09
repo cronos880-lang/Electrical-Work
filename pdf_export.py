@@ -189,6 +189,8 @@ class PDFWriter:
 
 def _sheet_page(doc,sheet_number,total):
     page=PDFPage()
+    stroke=1.45 if doc.get('drawing_scale',1.0)==0.70 else 2.0
+    dot_radius=3 if stroke<2 else 4
     geo=guide_geometry(PAGE_W)
     for bounds in (geo['outer'],geo['inner']):page.rect(*bounds,GREEN,1.35)
     for a,b,c,d in geo['lines']:page.line(a,b,c,d,GREEN,1.35)
@@ -197,22 +199,22 @@ def _sheet_page(doc,sheet_number,total):
         if element['kind']=='image':page.image(element)
     for wire in doc['wires']:
         for (x1,y1),(x2,y2) in zip(wire['points'],wire['points'][1:]):
-            page.line(x1,y1,x2,y2,INK,2)
+            page.line(x1,y1,x2,y2,INK,stroke)
     for element in doc['elements']:
         for shape in symbol_shapes(element):
             typ=shape[0]
             if typ in ('line','dashline'):
-                page.line(*shape[1:5],INK,2,typ=='dashline')
+                page.line(*shape[1:5],INK,stroke,typ=='dashline')
             elif typ in ('polygon','filledpolygon'):
-                page.poly(shape[1],INK,2,INK if typ=='filledpolygon' else None)
+                page.poly(shape[1],INK,stroke,INK if typ=='filledpolygon' else None)
             elif typ in ('circle','dot'):
-                page.circle(shape[1],shape[2],shape[3],INK,2,INK if typ=='dot' else None)
+                page.circle(shape[1],shape[2],shape[3],INK,stroke,INK if typ=='dot' else None)
             elif typ in ('text','textcenter','textend'):
                 _,x,y,value,size,color,*rest=shape
                 page.text(x,y,value,size,color,False,
                           'center' if typ=='textcenter' else 'right' if typ=='textend' else 'left',
                           rest[0] if rest else 'Arial')
-    for x,y in junction_points(doc):page.circle(x,y,4,INK,1,INK)
+    for x,y in junction_points(doc):page.circle(x,y,dot_radius,INK,1,INK)
     # Cajetín compacto compartido con el editor y SVG.
     border='#9fbbca'
     box=title_block_geometry()

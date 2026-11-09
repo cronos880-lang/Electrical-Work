@@ -1,0 +1,19 @@
+ELECTRICAL WORK V0.38.3 — SELECTOR DE HOJAS Y CAJETÍN COMPACTO
+===============================================================
+
+CAMBIOS
+- El desplegable superior «001 Título» muestra nombres de hoja más largos,
+  ajustándose a la anchura de la ventana. Las acciones secundarias pasan
+  al menú «Hojas» cuando no hay espacio suficiente.
+- Se recupera el cajetín compacto (NO se alarga): queda junto a los bordes
+  inferior y derecho del marco interior, sin superponer el dibujo al marco.
+- Se mantiene el margen de impresión A4 de la V0.38.1 y la compatibilidad con
+  conmutadores antiguos guardados en proyectos anteriores.
+
+INSTALACIÓN
+1. Descomprime este ZIP completo en una carpeta nueva.
+2. Ejecuta INICIAR_WINDOWS.bat (Windows, requiere Python 3.9+ y Tkinter).
+3. Abre tu proyecto .ework mediante «Abrir».
+4. Conserva siempre una copia del .ework original antes de guardar cambios.
+
+Este programa dibuja esquemas; no realiza simulación eléctrica.

@@ -1,0 +1,7 @@
+CAMBIOS V0.38.3
+===============
+- Ampliado solo el desplegable superior de selección de hojas y títulos.
+- Cajetín restaurado al tamaño compacto y alineado junto al marco interior
+  inferior y derecho con 2 unidades de separación.
+- Mismo aspecto en editor, SVG y PDF.
+- Compatibilidad con .ework antiguos preservada (V0.38.1).

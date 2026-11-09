@@ -1,30 +1,49 @@
-# Electrical Work V0.38.3 — versión de trabajo
+# Electrical Work Compacto V0.4 — desarrollo
 
-**Versión de referencia funcional.** Esta rama del repositorio debe permanecer separada de las pruebas de Compacto V0.4. No se ha cambiado ninguna línea del motor Python de la entrega original V0.38.3.
+**Rama:** `desarrollo-compacto`  
+**Estado:** última versión de la línea Compacto, todavía en desarrollo y pruebas.
+
+Esta rama sirve para perfeccionar la presentación y las proporciones de Electrical Work **sin alterar la versión V0.38.3**, que se conserva en la rama `main` como referencia funcional para el trabajo diario.
+
+> No sustituir ni fusionar automáticamente esta rama con `main`. Cualquier cambio de versión de trabajo requiere aprobación expresa.
+
+## Qué incorpora Compacto V0.4
+
+- Escala compacta real del **70 %** y rejilla fina.
+- Ajustes de proporciones del relé térmico tripolar.
+- Revisión gráfica de seis sensores inductivos, capacitivos y magnéticos (NA y NC).
+- Conservación de los puntos de conexión y del cableado de los símbolos.
+- Edición de referencias, esquemas de varias hojas y salida PDF/SVG vectorial.
+- Módulo `quality_render.py` para el tratamiento gráfico.
+
+Los cambios concretos y las comprobaciones documentadas están en `CAMBIOS_V0_4.txt`, `COMPROBACIONES_V0_4.txt` y `LEEME.txt`.
 
 ## Ejecutar en Windows
 
-1. Descarga el código de esta rama y descomprímelo en una carpeta nueva.
-2. Instala Python 3.9 o superior con Tkinter (normalmente incluido en la instalación oficial de Python para Windows).
-3. Haz doble clic en `INICIAR_WINDOWS.bat`.
-4. Para depurar un fallo, ejecuta `INICIAR_CON_CONSOLA.bat`.
+1. Descarga esta rama y descomprímela en una carpeta independiente de V0.38.3.
+2. Ten instalado Python 3 con Tkinter.
+3. Ejecuta `INICIAR_WINDOWS.bat`.
+4. Para consultar errores de arranque, utiliza `INICIAR_CON_CONSOLA.bat`.
 
-El programa dibuja esquemas eléctricos; no realiza simulación ni certificación de seguridad. La librería Pillow es opcional para determinados recursos de imagen.
+Pillow puede utilizarse para el suavizado gráfico; el lanzador permite continuar con el renderizado clásico si no se instala. Esta entrega es **código ejecutable mediante Python**, no un instalador EXE independiente.
 
-## Contenido
+## Archivos principales
 
-- `electrical_work.py`: aplicación gráfica principal.
-- `core.py`, `symbology.py`: modelo y símbolos.
-- `documentation.py`, `page_layout.py`, `pdf_export.py`: documentación, páginas e impresión.
-- `INICIAR_WINDOWS.bat`, `INICIAR_CON_CONSOLA.bat`: arranque Windows.
-- `CAMBIOS_V0_38_3.txt`, `LEEME.txt`: documentación de la versión.
+- `electrical_work.py`: interfaz del editor.
+- `core.py`, `symbology.py`: lógica y simbología.
+- `documentation.py`, `page_layout.py`, `pdf_export.py`: documentación, hojas y PDF.
+- `quality_render.py`: mejora de presentación gráfica.
+- `INICIAR_WINDOWS.bat`, `INICIAR_CON_CONSOLA.bat`: lanzadores Windows.
+- `COMPARATIVA_V0_4.png`, `PREVIA_EDITOR_V0_4.png`: imágenes ilustrativas del desarrollo.
 
-## Protección de datos
+## Proyectos y privacidad
 
-Esta copia de GitHub **no incluye proyectos de usuario ni ejemplos construidos sobre un trabajo personal**. En particular, se han excluido el proyecto `.ework` y el PDF de ejemplo que figuraban en la entrega original. Los trabajos reales y sus copias de seguridad deben conservarse fuera del repositorio. `.gitignore` no impide subir un archivo manualmente mediante la interfaz web de GitHub: comprueba siempre la lista antes de confirmar.
+Este repositorio no incluye proyectos personales `.ework` ni sus exportaciones. Las referencias a archivos de ejemplo en `LEEME.txt` corresponden al paquete de pruebas original: **esos ejemplos no se distribuyen en este repositorio**.
 
-## Evolución
+Conserva tus proyectos y copias de seguridad por separado. Revisa las futuras subidas a GitHub, ya que `.gitignore` no bloquea archivos añadidos manualmente desde la web.
 
-- Rama objetivo: `main`.
-- Esta versión no se sustituirá por Compacto V0.4 hasta que el usuario autorice expresamente el cambio de versión de trabajo.
-- La línea experimental se conserva en otra rama: `desarrollo-compacto`.
+## Compatibilidad y precauciones
+
+La documentación de V0.4 indica compatibilidad de apertura con proyectos de V0.38.3 y versiones Compacto anteriores. Guarda una copia de cualquier proyecto antes de editarlo con esta rama. Quedan pendientes las pruebas finales en Windows y la comprobación física de impresión.
+
+**Electrical Work es un editor de esquemas:** no simula ni certifica la seguridad de una instalación eléctrica.

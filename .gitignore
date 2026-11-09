@@ -1,0 +1,43 @@
+# Proyectos y documentos personales
+*.ework
+*.pdf
+*.svg
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.zip
+*.7z
+*.rar
+
+# Datos y copias privadas
+Datos/
+Proyectos/
+proyectos/
+Trabajos/
+trabajos/
+Copias_seguridad/
+copias_seguridad/
+backups/
+exports/
+exportaciones/
+
+# Datos locales
+*.log
+*.sqlite
+*.sqlite3
+*.db
+.env
+.env.*
+
+# Python y compilaciones
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+build/
+dist/
+*.spec
+*.exe

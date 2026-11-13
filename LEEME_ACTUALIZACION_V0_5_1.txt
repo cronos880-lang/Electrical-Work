@@ -1,0 +1,45 @@
+ELECTRICAL WORK COMPACTO V0.5.1 — ACTUALIZACIÓN DE RATÓN
+=======================================================
+TIPO: ACTUALIZACIÓN PARCIAL desde Compacto V0.5.
+Estado: preparada para probar en Windows. La aprobación oficial es del usuario.
+
+ARCHIVOS DE ESTA ACTUALIZACIÓN
+- electrical_work.py     (único archivo del programa modificado)
+- LEEME_ACTUALIZACION_V0_5_1.txt (estas instrucciones)
+
+INSTALACIÓN SIN PÉRDIDA DE DATOS
+1. Cierra Electrical Work.
+2. Conserva la carpeta de V0.5 y haz una copia de seguridad de electrical_work.py.
+3. Extrae este ZIP de actualización.
+4. Copia electrical_work.py dentro de la carpeta de Compacto V0.5, sustituyendo
+   únicamente ese archivo. No borres ni sustituyas proyectos .ework.
+5. Ejecuta INICIAR_WINDOWS.bat como siempre. La ventana mostrará V0.5.1.
+6. Si algo falla, cierra el programa y recupera el electrical_work.py original
+   de V0.5. No se ha cambiado el formato de proyectos.
+
+NOVEDADES
+- Rueda del ratón: ampliar/reducir zoom directamente, sin Ctrl y centrado
+  aproximadamente en la posición del puntero (100% sigue ajustando toda la hoja).
+- Puntero y fondo vacío: mantener botón izquierdo y arrastrar para desplazar
+  una hoja ampliada. No modifica los elementos ni crea selección accidental.
+- Desplegable LÍNEAS: cuarta herramienta «Selección por recuadro».
+  Elegirla, marcar un área y soltar: selecciona los objetos contenidos y
+  vuelve al puntero para mover o eliminar el grupo.
+- Se conservan el arrastre de elementos individuales, números de bornes
+  movibles, selección múltiple, cables, Esc, Ctrl+Z y zoom numérico.
+- La opción de línea recta sigue siendo la predeterminada del desplegable.
+
+PRUEBAS REALIZADAS
+- Prueba gráfica de zoom alrededor del cursor y rueda X11 (equivalente a
+  eventos de rueda de Windows, que queda pendiente de confirmar físicamente).
+- Desplazamiento a zoom 300% sin marcar el proyecto como modificado.
+- Selección de dos símbolos por recuadro, arrastre de grupo y Ctrl+Z.
+- Apertura del proyecto real de seis hojas en memoria; sin cambios en sus
+  86 elementos ni 118 cables al navegar o modificar el zoom.
+- Prueba con suavizado Pillow activado y desactivado.
+- Compilación de sintaxis Python 3.13. No se añaden dependencias.
+
+COMPATIBILIDAD
+Python >=3.9, Tkinter incluido en Windows; Pillow sigue siendo opcional.
+Motor, símbolos, formato .ework, PDF y documentación sin cambios.
+No se ha ejecutado aún en el Windows del usuario.

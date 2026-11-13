@@ -85,7 +85,7 @@ class ElectricalWorkApp:
         self._status_var=tk.StringVar(value='Listo para dibujar')
         self._zoom_var=tk.StringVar(value='100')
         self._selection_var=tk.StringVar(value='Sin selección')
-        root.title('Electrical Work · COMPACTO V0.5.2')
+        root.title('Electrical Work · COMPACTO V0.5.2 · REVISIÓN ENMARCAR')
         root.configure(bg=BG)
         root.geometry('1450x900')
         root.minsize(980,600)

@@ -1,0 +1,31 @@
+ELECTRICAL WORK COMPACTO V0.5 — MEJORA GRÁFICA (PRUEBA)
+===================================================
+Origen: Compacto V0.4 (conservada; no sustituir sin probar).
+Rama: desarrollo-compacto. Estado: entrega de prueba, NO aprobada como oficial.
+
+CAMBIOS
+- Mecanismos de protecciones multipolares, diferenciales y guardamotor
+  redibujados con geometría compacta uniforme.
+- Contactos interiores NA/NC de sensores más distinguibles.
+- Barrera fotoeléctrica con detalles vectoriales reorganizados.
+- Antialiasing con trazos de terminación redondeada y rellenos opacos
+  para figuras cerradas (Pillow opcional).
+- Mantiene escala de trabajo nominal del 70 %, rejilla de 10 y motor
+  original de editor, PDF/SVG, documentación y guardado.
+
+COMPATIBILIDAD
+Los puntos eléctricos no se desplazan. Esta entrega modifica el estilo
+visual de ciertos símbolos; un proyecto antiguo puede visualizar los
+mismos símbolos con los contornos afinados. Haz una copia del .ework antes
+de editarlo y comprueba siempre conexiones, cotas y PDF.
+
+PRUEBAS
+- Regresión local de 63 tipos y 4 orientaciones, guardado y PDF/SVG.
+- Comparativa de posiciones eléctricas frente a la base.
+- Verificación de ventana gráfica en entorno de pruebas.
+- Pendiente: prueba real en Windows y en impresora.
+- No es simulador ni certifica simbología conforme a IEC 60617.
+
+HERRAMIENTAS
+Evaluadas ArtCraft/VectorCraft, Rust, Godot y REA. Sin incorporar motores
+ni dependencias permanentes. Se usan métodos vectoriales existentes.

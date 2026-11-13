@@ -30,14 +30,16 @@ from core import (
     symbol_shapes,annotation_positions,_rotate,port_positions,wire_connection_target,junction_points,save_document,load_document,export_svg,make_straight_wire,make_rectangle_wire, terminal_label_names, get_terminal_labels, new_project, project_from_document, load_project, save_project, MAX_SHEETS,
 )
 
-BG='#e9eff5'
-NAVY='#101f32'
-NAVY2='#172a42'
+BG='#ecf1f7'
+NAVY='#111c2e'
+NAVY2='#203149'
 TEAL='#00a7a4'
 INK='#21364c'
 MUTED='#718397'
 BORDER='#d8e2ea'
 FONT='Segoe UI'
+BRAND_BLUE='#8fc8ff'
+BRAND_BORDER='#42678a'
 
 class ElectricalWorkApp:
     def __init__(self, root):
@@ -79,6 +81,12 @@ class ElectricalWorkApp:
         self._contact_anchor=None
         self._group_anchors={}
         self._active_flyout=None
+        # Fuente de títulos fina cuando Windows la tenga instalada.
+        # Fallback seguro para otros sistemas y sin descargar tipografías.
+        installed={family.casefold():family for family in tkfont.families(root)}
+        self._brand_font=next((installed[candidate.casefold()]
+            for candidate in ('Segoe UI Light','Segoe UI Variable Display','Segoe UI')
+            if candidate.casefold() in installed),FONT)
         self._title_var=tk.StringVar(value=self.doc['title'])
         self._prop_var=tk.StringVar()
         self._info_var=tk.StringVar()
@@ -101,13 +109,29 @@ class ElectricalWorkApp:
         root.after(60,self.redraw)
 
     def _btn(self,parent,text,command,bg=NAVY2,fg='#eaf6fc',padx=15,pady=10,**kw):
-        return tk.Button(parent,text=text,command=command,font=(FONT,10,'bold'),
+        return tk.Button(parent,text=text,command=command,font=(FONT,10,'normal'),
                   bg=bg,fg=fg,activebackground=TEAL,activeforeground='white',
                   bd=0,relief='flat',cursor='hand2',padx=padx,pady=pady,
                   highlightthickness=0,**kw)
 
-    def _text(self,par,text,size=10,weight='normal',color=INK,background=None,**kw):
-        return tk.Label(par,text=text,font=(FONT,size,weight),fg=color,bg=background or par['bg'],**kw)
+    def _text(self,par,text,size=10,weight='normal',color=INK,background=None,family=None,**kw):
+        return tk.Label(par,text=text,font=(family or FONT,size,weight),
+                        fg=color,bg=background or par['bg'],**kw)
+
+    def _brand_mark(self,parent):
+        """Identidad eléctrica dibujada en Canvas; sin imagen externa ni motor CAD."""
+        mark=tk.Canvas(parent,width=43,height=43,bd=0,highlightthickness=0,
+                       bg=NAVY,takefocus=0)
+        mark.create_polygon(12,2,31,2,41,12,41,31,31,41,12,41,2,31,2,12,
+                            smooth=True,splinesteps=20,fill='#1b3049',
+                            outline=BRAND_BORDER,width=1.35)
+        mark.create_line(11,30,17,30,17,15,27,15,27,25,33,25,
+                         fill=BRAND_BLUE,width=1.6,capstyle='round',
+                         joinstyle='round')
+        for cx,cy in ((11,30),(17,15),(33,25)):
+            mark.create_oval(cx-2.4,cy-2.4,cx+2.4,cy+2.4,
+                             fill='#1b3049',outline=BRAND_BLUE,width=1.4)
+        return mark
 
     def _make_icon_rail(self,base):
         """Barra CAD compacta: pictogramas técnicos finos, sin nombres visibles."""
@@ -369,9 +393,9 @@ class ElectricalWorkApp:
         """Dibuja iconos de 24 px a escala constante, sin deformar símbolos."""
         for tool,cv in list(self._tool_buttons.items())+list(self._flyout_buttons.items()):
             selected=(tool==self.tool or (tool in self._groups and self.tool in self._groups[tool]))
-            bg='#e5f7f4' if selected else '#f7fafc'
-            fg='#067b78' if selected else '#30495b'
-            cv.configure(bg=bg,highlightbackground='#9dd3ca' if selected else bg)
+            bg='#e8f4ff' if selected else '#f7fafc'
+            fg='#287fac' if selected else '#30495b'
+            cv.configure(bg=bg,highlightbackground='#85bce1' if selected else bg)
             cv.delete('all')
             def line(*points,width=1.45,dash=None):
                 opts={'fill':fg,'width':width,'capstyle':'round','joinstyle':'round'}
@@ -446,27 +470,30 @@ class ElectricalWorkApp:
                     anchor='center' if typ=='mark' else 'w')
 
     def _build_ui(self):
-        # Cabecera reducida: recuperar altura útil sin cambiar su estilo.
-        top=tk.Frame(self.root,bg=NAVY,height=54)
+        # Referencia visual: letra fina, icono técnico vectorial y cabecera
+        # azul marino inspirada en el Visor STL; compacta y sin cambios de motor.
+        top=tk.Frame(self.root,bg=NAVY,height=60)
         top.pack(fill='x',side='top')
         top.pack_propagate(False)
         brand=tk.Frame(top,bg=NAVY)
-        brand.pack(side='left',fill='y',padx=(12,0))
-        tk.Label(brand,text='EW',font=(FONT,12,'bold'),fg='white',bg=TEAL,
-                 width=3,height=2).pack(side='left',pady=8)
+        brand.pack(side='left',fill='y',padx=(16,0))
+        self._brand_mark(brand).pack(side='left',pady=8)
         titlebox=tk.Frame(brand,bg=NAVY)
-        titlebox.pack(side='left',padx=10,pady=7)
-        self._text(titlebox,'ELECTRICAL WORK',12,'bold','#ffffff').pack(anchor='w')
-        self._text(titlebox,'EDITOR DE ESQUEMAS · COMPACTO 70 % · V0.5',8,'normal','#9db2c5').pack(anchor='w')
+        titlebox.pack(side='left',padx=(12,0),pady=8)
+        self._text(titlebox,'Electrical Work · Compacto',16,'normal',
+                   '#f4f8ff',family=self._brand_font).pack(anchor='w')
+        self._text(titlebox,'Editor de esquemas · 70 % · V0.5.2',9,'normal',
+                   '#9db1c8').pack(anchor='w',pady=(1,0))
         actions=tk.Frame(top,bg=NAVY)
-        actions.pack(side='right',padx=(0,12),pady=9)
+        actions.pack(side='right',padx=(0,16),pady=11)
+        tk.Frame(top,height=1,bg='#304862').pack(side='bottom',fill='x')
         for name,command,bg in [
             ('Nuevo',self.new_file,NAVY2),('Abrir',self.open_file,NAVY2),
             ('Guardar',self.save_file,TEAL),('Documentación',self.open_documentation,NAVY2),
             ('Exportar PDF',self.export_pdf_dialog,NAVY2),
             ('Salir',self.on_close,NAVY2)]:
             btn=self._btn(actions,name,command,bg=bg,padx=10,pady=6)
-            btn.config(font=(FONT,9,'bold'))
+            btn.config(font=(FONT,9,'normal'))
             btn.pack(side='left',padx=3)
 
         base=tk.Frame(self.root,bg=BG)
@@ -487,7 +514,7 @@ class ElectricalWorkApp:
         left.pack(side='left',fill='y',padx=(10,0))
         def action(name,callback,description,attr=None,bg='#edf3f7',fg=INK):
             btn=self._btn(left,name,callback,bg=bg,fg=fg,padx=9,pady=5)
-            btn.configure(font=(FONT,9,'bold'))
+            btn.configure(font=(FONT,9,'normal'))
             btn.pack(side='left',padx=2,pady=7)
             self._bind_tip(btn,description)
             if attr:setattr(self,attr,btn)
@@ -515,7 +542,7 @@ class ElectricalWorkApp:
         sheets_bar.pack(side='left',fill='y',padx=(4,0))
         def sheet_button(label,func,bg='#edf3f7'):
             b=self._btn(sheets_bar,label,func,bg=bg,fg=INK,padx=4,pady=5)
-            b.configure(font=(FONT,8,'bold'))
+            b.configure(font=(FONT,8,'normal'))
             b.pack(side='left',padx=1,pady=7)
             return b
         self.sheet_prev_button=sheet_button('◀',lambda:self.switch_sheet(self.sheet_index-1))
@@ -532,7 +559,7 @@ class ElectricalWorkApp:
         self.sheet_rename_button=sheet_button('Nombre',self.rename_sheet)
         self.sheet_project_button=sheet_button('Proyecto',self.rename_project)
         self.sheet_menu_button=tk.Menubutton(sheets_bar,text='Hojas ▾',bg='#edf3f7',
-                     fg=INK,font=(FONT,8,'bold'),relief='flat',padx=5,pady=5,
+                     fg=INK,font=(FONT,8,'normal'),relief='flat',padx=5,pady=5,
                      activebackground='#d9eaf0',cursor='hand2')
         self.sheet_menu=tk.Menu(self.sheet_menu_button,tearoff=False)
         for text,callback in (('+ Añadir hoja',self.add_sheet),
@@ -555,13 +582,13 @@ class ElectricalWorkApp:
         zoom_out.pack(side='left',pady=7)
         self._bind_tip(zoom_out,'Reducir zoom en 10 puntos porcentuales')
         self.zoom_entry=tk.Entry(zoom_controls,textvariable=self._zoom_var,width=5,
-            justify='center',font=(FONT,10,'bold'),fg=INK,bg='white',
+            justify='center',font=(FONT,10,'normal'),fg=INK,bg='white',
             relief='solid',bd=1,highlightthickness=1,highlightbackground=BORDER)
         self.zoom_entry.pack(side='left',padx=(7,2),ipady=5)
         self.zoom_entry.bind('<Return>',self.apply_zoom_entry)
         self.zoom_entry.bind('<KP_Enter>',self.apply_zoom_entry)
         self.zoom_entry.bind('<FocusOut>',self.apply_zoom_entry)
-        self._text(zoom_controls,'%',9,'bold',INK).pack(side='left',padx=(0,7))
+        self._text(zoom_controls,'%',9,'normal',INK).pack(side='left',padx=(0,7))
         zoom_in=self._btn(zoom_controls,'+',lambda:self.set_zoom(self.zoom_percent+10),
                            bg='#edf3f7',fg=INK,padx=9,pady=5)
         zoom_in.configure(font=(FONT,11,'bold'))

@@ -1,0 +1,50 @@
+ELECTRICAL WORK COMPACTO V0.5.2 — AFINADO VISUAL
+===================================================
+TIPO: ACTUALIZACIÓN PARCIAL DE PRUEBA.
+ORIGEN: V0.5.2 con la CORRECCIÓN ENMARCAR ya instalada.
+RAMA: desarrollo-compacto.
+ESTADO: no constituye una nueva versión ni aprobación oficial.
+La referencia funcional V0.38.3 en main permanece intacta.
+
+INSTALACIÓN SIN PÉRDIDA DE DATOS
+1. Cierra Electrical Work.
+2. Comprueba que estás en la carpeta de Compacto V0.5.2 con
+   "REVISIÓN ENMARCAR" en el título de la ventana.
+3. Haz una copia del archivo electrical_work.py original, fuera de
+   la carpeta de ejecución, y conserva tus proyectos .ework.
+4. Descomprime este ZIP. Sustituye ÚNICAMENTE electrical_work.py
+   por el archivo del ZIP en la instalación Compacto V0.5.2.
+5. Ejecuta INICIAR_WINDOWS.bat como hasta ahora. Verifica que la
+   cabecera muestre "Electrical Work · Compacto" en trazo ligero,
+   con el icono de conexiones y subtítulo "70 % · V0.5.2".
+6. Usa primero una copia de un esquema de prueba. Comprueba abrir,
+   editar, guardar, Enmarcar, girar, exportar PDF y volver a abrir.
+7. Si necesitas volver al diseño anterior, cierra el programa y
+   restaura el electrical_work.py guardado en el paso 3.
+
+ESTILO APLICADO
+- Cabecera azul marino de 60 píxeles, tipografía clara y ligera
+  inspirada en el Visor STL R20, sin instalar nuevas fuentes.
+- Icono de conexiones de líneas finas dibujado con Canvas de Tkinter.
+- Títulos y botones superiores menos pesados, colores armonizados.
+- Pictogramas de selección con acento azul y controles más limpios.
+- Ajuste del subtítulo al nombre V0.5.2 real, sin elevar versión.
+- Mantiene diseño compacto, barras de hojas y todas las funciones.
+
+ARCHIVOS
+- electrical_work.py: único archivo del programa que se sustituye.
+- LEEME_ACTUALIZACION_VISUAL_V0_5_2.txt: instrucciones y recuperación.
+
+COMPATIBILIDAD Y PROTECCIÓN
+- Python >=3.9, Tkinter. Pillow sigue siendo opcional y no se añade nada.
+- No modifica motor, geometría de símbolos, posiciones, conexionado,
+  formato .ework, PDF, SVG ni documentación.
+- No sustituye V0.38.3 ni modifica la Suite.
+
+PRUEBAS
+- Comprobación del nuevo encabezado e icono en Tkinter/Xvfb aislado
+  (prototipo de cabecera; no ejecución de la aplicación completa).
+- Prueba de regresión de identidad visual añadida en el repositorio.
+- Revisiones estáticas de estructura e identidad de las funciones.
+- Pendiente de prueba gráfica de la aplicación completa en Windows
+  y de confirmación del usuario; no declarar versión aprobada.

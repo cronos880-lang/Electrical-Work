@@ -119,7 +119,7 @@ class ElectricalWorkApp:
         self._tool_labels={
             'select':'Puntero: arrastra para mover objetos; en vacío, desplaza la hoja (Esc)',
             'select_box':'Enmarcar: mantén pulsado el botón izquierdo y arrastra para seleccionar componentes y cables',
-            'wire_group':'Líneas: recta, codo 90°, rectángulo y selección por recuadro',
+            'wire_group':'Líneas: recta, Enmarcar, cable a 90° y rectángulo',
             'wire_straight':'Línea libre, también diagonal',
             'wire':'Cable con codo a 90°',
             'wire_rectangle':'Cuadrado / rectángulo',
@@ -241,14 +241,8 @@ class ElectricalWorkApp:
             was_same=self._active_flyout==group
             self._close_contact_popup()
             if was_same:return 'break'
-        # En el grupo de líneas la opción predeterminada debe ser la recta.
-        if group=='wire_group':
-            self.tool='wire_straight'
-            self.pending_wire=None
-            self.dragging=None
-            self._info_var.set('Línea recta de cualquier inclinación: haz clic en inicio y final.')
-            self._status_var.set('Herramienta: Recta')
-            self.canvas.configure(cursor='crosshair')
+        # Mostrar el desplegable NO debe cambiar silenciosamente la herramienta.
+        # La recta sigue primera y recibe el foco inicial al abrir Líneas.
         self._paint_icons()
         self._hide_tooltip()
         menu=tk.Frame(self._icon_base,bg='#ffffff',relief='solid',bd=1,
@@ -261,7 +255,9 @@ class ElectricalWorkApp:
                          highlightbackground='#ffffff',bg='#ffffff',bd=0,
                          cursor='hand2',takefocus=1)
             cv.pack(side='left',padx=5,pady=5)
-            cv.bind('<Button-1>',lambda e,t=tool:self._choose_symbol_tool(t))
+            # Cambiar de herramienta al SOLTAR: cerrar el menú en ButtonPress
+            # destruye el widget antes de que termine el clic del ratón.
+            cv.bind('<ButtonRelease-1>',lambda e,t=tool:self._choose_symbol_tool(t))
             cv.bind('<Return>',lambda e,t=tool:self._choose_symbol_tool(t))
             cv.bind('<space>',lambda e,t=tool:self._choose_symbol_tool(t))
             cv.bind('<Enter>',lambda e,t=tool:self._show_tooltip(e,t))
@@ -673,8 +669,8 @@ class ElectricalWorkApp:
         self.dragging=None
         self.marquee_start=self.marquee_end=None
         descriptions={
-            'select':'Rueda para ampliar o reducir. Arrastra desde el vacío para desplazar la hoja; sobre un elemento lo mueves. Para seleccionar varios, usa el recuadro del desplegable Líneas.',
-            'select_box':'MODO ENMARCAR: pulsa y arrastra sobre el dibujo para marcar componentes o cables. No desplaza la hoja. Al soltar puedes mover el grupo con el puntero.',
+            'select':'Rueda para ampliar o reducir. Arrastra desde el vacío para desplazar la hoja; sobre un elemento lo mueves. Para seleccionar varios, activa Enmarcar (segunda opción de Líneas).',
+            'select_box':'ENMARCAR: mantén pulsado y arrastra sobre el dibujo. No mueve la hoja y permanece activo; pulsa Esc para mover la selección con el puntero.',
             'wire':'Cable a 90°: inicio y final. Indicador verde en uniones. Espacio cambia la posición del codo.',
             'wire_straight':'Línea recta de cualquier inclinación: haz clic en inicio y final.',
             'wire_rectangle':'Cuadrado / rectángulo: haz clic en dos esquinas opuestas.',
@@ -963,7 +959,9 @@ class ElectricalWorkApp:
             self.selected=('element',el['id'])
             self._changed()
     def on_canvas_drag(self,e):
-        if self.tool=='select_box' and self.marquee_start is not None:
+        if self.marquee_start is not None:
+            # Una selección iniciada conserva prioridad frente al desplazamiento,
+            # aunque se produzcan eventos de ratón durante el arrastre.
             self.marquee_end=self._point(e)
             x1,y1=self._xy(*self.marquee_start)
             x2,y2=self._xy(*self.marquee_end)
@@ -1070,7 +1068,6 @@ class ElectricalWorkApp:
             self.dragging=None
             self.canvas.configure(cursor='arrow')
             return 'break'
-        was_area_tool=self.tool=='select_box'
         if self.marquee_start is not None:
             ex,ey=self._point(e)
             sx,sy=self.marquee_start
@@ -1087,12 +1084,16 @@ class ElectricalWorkApp:
                 self.selected=None;self.multi_selected.clear()
             self._update_properties()
             self.redraw()
-        if self.dragging and self.dragging['changed']:self._changed()
+            # Nunca pasar a Puntero automáticamente: la siguiente pulsación
+            # debe iniciar otro marco, no desplazar la hoja o mover un objeto.
+            total=len(self._selection_items())
+            self._status_var.set(
+                f'Enmarcar: {total} objeto(s) seleccionado(s). Esc para moverlos.'
+                if total else 'Enmarcar: no hay objetos en el recuadro. Vuelve a arrastrar.'
+            )
+            return 'break'
+        if self.dragging and self.dragging.get('changed'):self._changed()
         self.dragging=None
-        if was_area_tool:
-            # Mantener la selección y habilitar el arrastre del grupo.
-            self._set_tool('select')
-            self._update_properties()
         return 'break'
 
     def on_canvas_double(self,e):

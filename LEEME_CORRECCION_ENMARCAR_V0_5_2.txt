@@ -1,0 +1,59 @@
+ELECTRICAL WORK COMPACTO V0.5.2 — REVISIÓN DE ENMARCAR (PARCHE DE PRUEBA)
+=========================================================================
+TIPO: ACTUALIZACIÓN PARCIAL, solo desde V0.5.2.
+ESTADO: CORRECCIÓN DE PRUEBA pendiente de validar en Windows; NO es versión oficial.
+RAMA: desarrollo-compacto. No afecta a main (V0.38.3).
+
+INSTALACIÓN SIN PÉRDIDA DE DATOS
+1. Cierra completamente Electrical Work.
+2. Abre la carpeta REAL de tu instalación Compacto V0.5.2. Si lo ejecutas
+   desde un acceso directo, comprueba en sus Propiedades > Destino dónde apunta.
+3. Guarda una copia del actual electrical_work.py como electrical_work.py.bak
+   fuera de la carpeta de ejecución, o en una carpeta de copias de seguridad.
+4. Extrae el ZIP de este parche y copia SOLO electrical_work.py a esa carpeta,
+   sustituyendo el archivo existente. NO sustituyas otros módulos ni los .ework.
+5. Ejecuta INICIAR_WINDOWS.bat. La ventana debe mostrar claramente:
+   "COMPACTO V0.5.2 · REVISIÓN ENMARCAR".
+   Si no aparece, se está arrancando otra instalación o no se sustituyó el archivo.
+6. Conserva todos los proyectos y archivos originales. Haz la prueba primero
+   con una COPIA de un esquema, sin sobrescribir tu trabajo real.
+
+COMO PROBAR ENMARCAR
+1. Abre Líneas en la barra lateral. El icono de ENMARCAR es el SEGUNDO,
+   inmediatamente después de la línea recta.
+2. Haz clic en ese segundo icono y comprueba que aparece el cursor en cruz.
+3. Mantén el botón izquierdo pulsado y arrastra desde una esquina hasta la
+   opuesta, abarcando dos o más símbolos o cables. Debe verse un rectángulo.
+4. Al soltar se resaltan los objetos tocados; la hoja NO debe desplazarse.
+5. Repite el recuadro en otra zona: ENMARCAR sigue activo, y de nuevo NO
+   debe desplazarse la hoja.
+6. Pulsa Esc para volver al Puntero y mover/eliminar la selección.
+7. Comprueba el mismo comportamiento con zoom superior al 100 %.
+8. Con Puntero activo, arrastrar desde una zona vacía sigue moviendo la
+   hoja ampliada; esto no debe producirse en modo Enmarcar.
+
+ARCHIVOS DEL ZIP
+- electrical_work.py: UNICO archivo del programa a sustituir.
+- LEEME_CORRECCION_ENMARCAR_V0_5_2.txt: este documento.
+- tests/test_enmarcar_gui.py: pruebas automatizadas opcionales; no instalar
+  en el programa si no quieres ejecutar los tests.
+
+CAMBIOS
+- No se cambia de herramienta al abrir el desplegable de Líneas.
+- El clic de elección de herramienta se confirma al SOLTAR el botón en el icono.
+- Enmarcar conserva su modo al terminar de seleccionar, hasta Esc o nueva herramienta.
+- Arrastre iniciado como selección nunca se procesa como movimiento de hoja.
+- La selección sigue aceptando símbolos parciales y cables que cruzan el área.
+- El título de ventana identifica explícitamente esta revisión.
+- No cambian formato .ework, motor, cables, simbología, PDF ni SVG.
+
+COMPROBACIONES Y LIMITES
+- Causas localizadas mediante inspección del código de eventos.
+- Añadidas pruebas de regresión GUI en tests/test_enmarcar_gui.py.
+- No se declara una prueba funcional completa ni una validación Windows:
+  quedan pendientes hasta ejecutar la aplicación en el equipo del usuario.
+- Requisitos sin cambios: Python >=3.9, Tkinter; Pillow opcional.
+
+RECUPERACIÓN
+Cierra el programa y restaura el electrical_work.py de la copia anterior.
+No borres proyectos ni datos ni sustituyas el resto de archivos.

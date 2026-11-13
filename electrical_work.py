@@ -1,4 +1,4 @@
-"""Electrical Work Compacto 0.5.1 - editor autónomo de esquemas eléctricos (sin simulación).
+"""Electrical Work Compacto 0.5.2 - editor autónomo de esquemas eléctricos (sin simulación).
 
 Requisitos: Python 3.9 o superior, Tkinter (incluido normalmente en Windows).
 """
@@ -85,7 +85,7 @@ class ElectricalWorkApp:
         self._status_var=tk.StringVar(value='Listo para dibujar')
         self._zoom_var=tk.StringVar(value='100')
         self._selection_var=tk.StringVar(value='Sin selección')
-        root.title('Electrical Work · COMPACTO V0.5.1')
+        root.title('Electrical Work · COMPACTO V0.5.2')
         root.configure(bg=BG)
         root.geometry('1450x900')
         root.minsize(980,600)
@@ -118,7 +118,7 @@ class ElectricalWorkApp:
         self.icon_rail=rail
         self._tool_labels={
             'select':'Puntero: arrastra para mover objetos; en vacío, desplaza la hoja (Esc)',
-            'select_box':'Selección por recuadro: arrastra para marcar varios objetos',
+            'select_box':'Enmarcar: mantén pulsado el botón izquierdo y arrastra para seleccionar componentes y cables',
             'wire_group':'Líneas: recta, codo 90°, rectángulo y selección por recuadro',
             'wire_straight':'Línea libre, también diagonal',
             'wire':'Cable con codo a 90°',
@@ -138,7 +138,7 @@ class ElectricalWorkApp:
         }
         self._tool_labels.update(SYMBOL_NAMES)
         self._groups={
-            'wire_group':('wire_straight','wire','wire_rectangle','select_box'),
+            'wire_group':('wire_straight','select_box','wire','wire_rectangle'),
             'contact_group':('contact_no','contact_nc',
                              'switch_horizontal_no','switch_horizontal_nc',
                              'switch_double_horizontal',
@@ -674,7 +674,7 @@ class ElectricalWorkApp:
         self.marquee_start=self.marquee_end=None
         descriptions={
             'select':'Rueda para ampliar o reducir. Arrastra desde el vacío para desplazar la hoja; sobre un elemento lo mueves. Para seleccionar varios, usa el recuadro del desplegable Líneas.',
-            'select_box':'Arrastra para encuadrar varios símbolos y cables. Al soltar vuelves al puntero.',
+            'select_box':'MODO ENMARCAR: pulsa y arrastra sobre el dibujo para marcar componentes o cables. No desplaza la hoja. Al soltar puedes mover el grupo con el puntero.',
             'wire':'Cable a 90°: inicio y final. Indicador verde en uniones. Espacio cambia la posición del codo.',
             'wire_straight':'Línea recta de cualquier inclinación: haz clic en inicio y final.',
             'wire_rectangle':'Cuadrado / rectángulo: haz clic en dos esquinas opuestas.',
@@ -683,7 +683,7 @@ class ElectricalWorkApp:
         self._info_var.set(descriptions.get(tool,'Haz clic sobre la hoja para colocar un '+SYMBOL_NAMES.get(tool,'elemento')+'.'))
         self._paint_icons()
         self._hide_tooltip()
-        self._status_var.set('Herramienta: '+({'select':'Puntero','select_box':'Seleccionar área','wire':'Cable 90°','wire_straight':'Recta','wire_rectangle':'Rectángulo','text':'Texto'}.get(tool,SYMBOL_NAMES.get(tool,tool))))
+        self._status_var.set('Herramienta: '+({'select':'Puntero','select_box':'Enmarcar selección','wire':'Cable 90°','wire_straight':'Recta','wire_rectangle':'Rectángulo','text':'Texto'}.get(tool,SYMBOL_NAMES.get(tool,tool))))
         self.canvas.configure(cursor='arrow' if tool=='select' else 'crosshair')
         self.redraw()
 
@@ -784,6 +784,41 @@ class ElectricalWorkApp:
                     xs.extend(x for x,_ in wire['points']); ys.extend(y for _,y in wire['points'])
         if not xs:return None
         return min(xs),min(ys),max(xs),max(ys)
+
+    @staticmethod
+    def _segment_intersects_area(a,b,left,top,right,bottom):
+        """Liang-Barsky: detecta también cables que cruzan el recuadro."""
+        x1,y1=a;x2,y2=b
+        dx=x2-x1;dy=y2-y1
+        enter,leave=0.,1.
+        for p,q in ((-dx,x1-left),(dx,right-x1),(-dy,y1-top),(dy,bottom-y1)):
+            if p==0:
+                if q<0:return False
+            else:
+                t=q/p
+                if p<0:enter=max(enter,t)
+                else:leave=min(leave,t)
+                if enter>leave:return False
+        return True
+
+    def _objects_in_area(self,left,top,right,bottom):
+        """Encuentra dibujos visibles tocados por un marco de selección.
+
+        Para símbolos e imágenes usa la caja real renderizada, incluyendo
+        numeraciones; para cables examina cada segmento, no solo sus extremos.
+        """
+        ax,ay=self._xy(left,top)
+        bx,by=self._xy(right,bottom)
+        found=set()
+        for item in self.doc['elements']:
+            box=self.canvas.bbox(f'element:{item["id"]}')
+            if box and box[0]<=bx and box[2]>=ax and box[1]<=by and box[3]>=ay:
+                found.add(('element',item['id']))
+        for wire in self.doc['wires']:
+            if any(self._segment_intersects_area(a,b,left,top,right,bottom)
+                   for a,b in zip(wire['points'],wire['points'][1:])):
+                found.add(('wire',wire['id']))
+        return found
 
     def on_canvas_down(self,e):
         # El modo de encuadre es deliberado y no interfiere con arrastrar la hoja.
@@ -930,7 +965,15 @@ class ElectricalWorkApp:
     def on_canvas_drag(self,e):
         if self.tool=='select_box' and self.marquee_start is not None:
             self.marquee_end=self._point(e)
-            self.redraw()
+            x1,y1=self._xy(*self.marquee_start)
+            x2,y2=self._xy(*self.marquee_end)
+            box=self.canvas.find_withtag('selection-marquee')
+            if box:
+                self.canvas.coords(box[-1],x1,y1,x2,y2)
+            else:
+                self.canvas.create_rectangle(x1,y1,x2,y2,outline=TEAL,
+                    fill='#dff7f3',stipple='gray25',dash=(5,3),width=1.5,
+                    tags=('selection-marquee',))
             return 'break'
         if self.tool!='select': return
         if self.dragging and self.dragging.get('mode')=='pan':
@@ -1035,10 +1078,7 @@ class ElectricalWorkApp:
             self.marquee_end=None
             if abs(ex-sx)*self.zoom>=5 and abs(ey-sy)*self.zoom>=5:
                 left,right=sorted((sx,ex));top,bottom=sorted((sy,ey))
-                picked={('element',item['id']) for item in self.doc['elements']
-                        if left<=item['x']<=right and top<=item['y']<=bottom}
-                picked.update(('wire',wire['id']) for wire in self.doc['wires']
-                              if all(left<=x<=right and top<=y<=bottom for x,y in wire['points']))
+                picked=self._objects_in_area(left,top,right,bottom)
                 if len(picked)==1:
                     self.selected=next(iter(picked));self.multi_selected.clear()
                 else:
@@ -1535,7 +1575,7 @@ class ElectricalWorkApp:
 
     def _update_caption(self):
         name=os.path.basename(self.filepath) if self.filepath else 'Sin guardar'
-        self.root.title(f'Electrical Work · {name}{" *" if self.dirty else ""} · COMPACTO V0.5')
+        self.root.title(f'Electrical Work · {name}{" *" if self.dirty else ""} · COMPACTO V0.5.2')
 
     def return_to_pointer(self,event=None):
         """Esc siempre desactiva la herramienta de dibujo actual."""

@@ -1,4 +1,4 @@
-"""Electrical Work Compacto 0.5 - editor autónomo de esquemas eléctricos (sin simulación).
+"""Electrical Work Compacto 0.5.1 - editor autónomo de esquemas eléctricos (sin simulación).
 
 Requisitos: Python 3.9 o superior, Tkinter (incluido normalmente en Windows).
 """
@@ -85,7 +85,7 @@ class ElectricalWorkApp:
         self._status_var=tk.StringVar(value='Listo para dibujar')
         self._zoom_var=tk.StringVar(value='100')
         self._selection_var=tk.StringVar(value='Sin selección')
-        root.title('Electrical Work · COMPACTO V0.5')
+        root.title('Electrical Work · COMPACTO V0.5.1')
         root.configure(bg=BG)
         root.geometry('1450x900')
         root.minsize(980,600)
@@ -117,8 +117,9 @@ class ElectricalWorkApp:
         rail.pack_propagate(False)
         self.icon_rail=rail
         self._tool_labels={
-            'select':'Puntero / seleccionar (Esc)',
-            'wire_group':'Líneas: recta, cable 90° o cuadrado/rectángulo',
+            'select':'Puntero: arrastra para mover objetos; en vacío, desplaza la hoja (Esc)',
+            'select_box':'Selección por recuadro: arrastra para marcar varios objetos',
+            'wire_group':'Líneas: recta, codo 90°, rectángulo y selección por recuadro',
             'wire_straight':'Línea libre, también diagonal',
             'wire':'Cable con codo a 90°',
             'wire_rectangle':'Cuadrado / rectángulo',
@@ -137,7 +138,7 @@ class ElectricalWorkApp:
         }
         self._tool_labels.update(SYMBOL_NAMES)
         self._groups={
-            'wire_group':('wire_straight','wire','wire_rectangle'),
+            'wire_group':('wire_straight','wire','wire_rectangle','select_box'),
             'contact_group':('contact_no','contact_nc',
                              'switch_horizontal_no','switch_horizontal_nc',
                              'switch_double_horizontal',
@@ -392,6 +393,10 @@ class ElectricalWorkApp:
                 ring(8,26,1.6);ring(28,9,1.6)
                 if tool=='wire_group':
                     cv.create_polygon(29,24,33,26.5,29,29,fill=fg,outline=fg)
+            elif tool=='select_box':
+                rect(8,9,27,26,width=1.3)
+                cv.create_rectangle(11,12,17,18,outline=fg,fill=bg,width=1)
+                cv.create_line(7,7,11,7,fill=fg,dash=(2,2))
             elif tool=='wire_straight':
                 line(7,26,28,7)
                 ring(7,26,1.8);ring(28,7,1.8)
@@ -666,8 +671,10 @@ class ElectricalWorkApp:
         self.tool=tool
         self.pending_wire=None
         self.dragging=None
+        self.marquee_start=self.marquee_end=None
         descriptions={
-            'select':'Arrastra números y referencias para moverlos por separado. Clic derecho sobre la etiqueta para restablecer. Doble clic en el símbolo para editar.',
+            'select':'Rueda para ampliar o reducir. Arrastra desde el vacío para desplazar la hoja; sobre un elemento lo mueves. Para seleccionar varios, usa el recuadro del desplegable Líneas.',
+            'select_box':'Arrastra para encuadrar varios símbolos y cables. Al soltar vuelves al puntero.',
             'wire':'Cable a 90°: inicio y final. Indicador verde en uniones. Espacio cambia la posición del codo.',
             'wire_straight':'Línea recta de cualquier inclinación: haz clic en inicio y final.',
             'wire_rectangle':'Cuadrado / rectángulo: haz clic en dos esquinas opuestas.',
@@ -676,7 +683,7 @@ class ElectricalWorkApp:
         self._info_var.set(descriptions.get(tool,'Haz clic sobre la hoja para colocar un '+SYMBOL_NAMES.get(tool,'elemento')+'.'))
         self._paint_icons()
         self._hide_tooltip()
-        self._status_var.set('Herramienta: '+({'select':'Seleccionar','wire':'Cable 90°','wire_straight':'Recta','wire_rectangle':'Rectángulo','text':'Texto'}.get(tool,SYMBOL_NAMES.get(tool,tool))))
+        self._status_var.set('Herramienta: '+({'select':'Puntero','select_box':'Seleccionar área','wire':'Cable 90°','wire_straight':'Recta','wire_rectangle':'Rectángulo','text':'Texto'}.get(tool,SYMBOL_NAMES.get(tool,tool))))
         self.canvas.configure(cursor='arrow' if tool=='select' else 'crosshair')
         self.redraw()
 
@@ -779,8 +786,14 @@ class ElectricalWorkApp:
         return min(xs),min(ys),max(xs),max(ys)
 
     def on_canvas_down(self,e):
+        # El modo de encuadre es deliberado y no interfiere con arrastrar la hoja.
+        if self.tool=='select_box':
+            self.dragging=None
+            self.marquee_start=self._point(e)
+            self.marquee_end=self.marquee_start
+            self.redraw()
+            return 'break'
         x,y=self._page_point(e)
-        if not self._in_page(self._point(e)):return
         if self.tool=='select':
             annotation=self._hit_annotation(e)
             if annotation is not None:
@@ -826,10 +839,15 @@ class ElectricalWorkApp:
                                    'start':(x,y), 'origin':deepcopy(wire['points']),
                                    'changed':False}
             elif hit is None:
-                self.marquee_start=self._point(e)
-                self.marquee_end=self.marquee_start
+                # El botón izquierdo sobre el fondo mueve la vista ampliada.
+                # Nunca cambia el dibujo ni crea un recuadro accidental.
+                self.dragging={'mode':'pan','changed':False}
+                self.canvas.scan_mark(e.x,e.y)
+                self.canvas.configure(cursor='fleur')
             self._update_properties()
             self.redraw()
+            return
+        if not self._in_page(self._point(e)):
             return
         if self.tool in ('wire','wire_straight','wire_rectangle'):
             self._last_cursor=self._point(e)
@@ -910,7 +928,15 @@ class ElectricalWorkApp:
             self.selected=('element',el['id'])
             self._changed()
     def on_canvas_drag(self,e):
+        if self.tool=='select_box' and self.marquee_start is not None:
+            self.marquee_end=self._point(e)
+            self.redraw()
+            return 'break'
         if self.tool!='select': return
+        if self.dragging and self.dragging.get('mode')=='pan':
+            if self.zoom_percent>100:
+                self.canvas.scan_dragto(e.x,e.y,gain=1)
+            return 'break'
         if self.marquee_start is not None:
             self.marquee_end=self._point(e)
             self.redraw()
@@ -997,6 +1023,11 @@ class ElectricalWorkApp:
             move_element(self.doc,d['id'],new_x,new_y)
             self.redraw()
     def on_canvas_up(self,e):
+        if self.dragging and self.dragging.get('mode')=='pan':
+            self.dragging=None
+            self.canvas.configure(cursor='arrow')
+            return 'break'
+        was_area_tool=self.tool=='select_box'
         if self.marquee_start is not None:
             ex,ey=self._point(e)
             sx,sy=self.marquee_start
@@ -1018,6 +1049,11 @@ class ElectricalWorkApp:
             self.redraw()
         if self.dragging and self.dragging['changed']:self._changed()
         self.dragging=None
+        if was_area_tool:
+            # Mantener la selección y habilitar el arrastre del grupo.
+            self._set_tool('select')
+            self._update_properties()
+        return 'break'
 
     def on_canvas_double(self,e):
         if self.tool!='select':return
@@ -1031,17 +1067,23 @@ class ElectricalWorkApp:
         x,y=self._point(e)
         self._last_cursor=(x,y)
         if self.tool=='select' and not self.dragging:
-            # Cursor de movimiento solo sobre una anotación desplazable.
-            self.canvas.configure(cursor='fleur' if self._hit_annotation(e) else 'arrow')
+            # En espacio vacío se indica que se puede desplazar la vista.
+            can_pan=self.zoom_percent>100 and self._hit(e) is None
+            self.canvas.configure(cursor='fleur' if can_pan or self._hit_annotation(e) else 'arrow')
         if self.tool in ('wire','wire_straight','wire_rectangle'):self._draw_wire_overlay()
 
     def on_mousewheel(self,e):
-        # La rueda sin Ctrl hace scroll; con Ctrl cambia el zoom.
-        ctrl=bool(getattr(e,'state',0)&0x0004)
+        # La rueda controla SIEMPRE el zoom (sin necesidad de Ctrl).
+        # Windows usa delta=120 por paso; en X11 se reciben Button-4/5.
         delta=getattr(e,'delta',0)
-        if not delta and getattr(e,'num',0) in (4,5):delta=120 if e.num==4 else -120
-        if ctrl:self.set_zoom(self.zoom_percent*(1.15 if delta>0 else 1/1.15))
-        else:self.canvas.yview_scroll(-1 if delta>0 else 1,'units')
+        if not delta and getattr(e,'num',0) in (4,5):
+            delta=120 if e.num==4 else -120
+        if not delta:return 'break'
+        if self.dragging is not None or self.marquee_start is not None:return 'break'
+        steps=min(8,max(1,round(abs(delta)/120)))
+        factor=1.12**steps
+        zoom=self.zoom_percent*(factor if delta>0 else 1/factor)
+        self.set_zoom(zoom,anchor=(e.x,e.y))
         return 'break'
 
     def _text_dialog(self,item=None):
@@ -1362,7 +1404,7 @@ class ElectricalWorkApp:
             cv.create_oval(px-radius,py-radius,px+radius,py+radius,
                 fill=INK,outline=INK,tags=('junction-dot',))
         self._draw_wire_overlay()
-        if self.tool=='select' and self.marquee_start is not None and self.marquee_end is not None:
+        if self.tool=='select_box' and self.marquee_start is not None and self.marquee_end is not None:
             x1,y1=self._xy(*self.marquee_start)
             x2,y2=self._xy(*self.marquee_end)
             cv.create_rectangle(x1,y1,x2,y2,outline=TEAL,fill='#dff7f3',
@@ -1896,16 +1938,33 @@ class ElectricalWorkApp:
         self.canvas.focus_set()
         return 'break'
 
-    def set_zoom(self,percent):
-        """100 % = hoja completa, calculada según el tamaño actual del lienzo."""
+    def set_zoom(self,percent,anchor=None):
+        """Zoom de 1–1000 %: al girar la rueda conserva el punto bajo el cursor.
+
+        100 % ajusta la hoja completa al espacio disponible. Los controles
+        numéricos y +/- conservan el centro visible, sin alterar el proyecto.
+        """
         percent=max(1.0,min(1000.0,float(percent)))
+        cv=self.canvas
+        if anchor is None:
+            anchor=(cv.winfo_width()/2,cv.winfo_height()/2)
+        ax,ay=anchor
+        before=((cv.canvasx(ax)-self._offset_x)/self.zoom,
+                (cv.canvasy(ay)-self._offset_y)/self.zoom)
         self.zoom_percent=round(percent,3)
         self._zoom_var.set(self._zoom_text(self.zoom_percent))
         self.redraw()
-        # A 100% o menos no hay desplazamiento y toda la hoja queda visible.
         if self.zoom_percent<=100:
-            self.canvas.xview_moveto(0)
-            self.canvas.yview_moveto(0)
+            cv.xview_moveto(0)
+            cv.yview_moveto(0)
+            return
+        # canvasx/canvasy incorporan el desplazamiento de las barras.
+        # xview_moveto recibe una fracción del scrollregion completo.
+        target_x,target_y=self._xy(*before)
+        width=max(cv.winfo_width(),PAGE_W*self.zoom+8)
+        height=max(cv.winfo_height(),paper_height(PAGE_W)*self.zoom+8)
+        cv.xview_moveto(max(0,(target_x-ax)/width))
+        cv.yview_moveto(max(0,(target_y-ay)/height))
 
 
     def _sync_current_sheet(self):

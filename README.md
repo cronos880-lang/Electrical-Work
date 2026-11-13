@@ -1,7 +1,7 @@
-# Electrical Work Compacto V0.4 — desarrollo
+# Electrical Work Compacto V0.5 — revisión gráfica de prueba
 
 **Rama:** `desarrollo-compacto`  
-**Estado:** última versión de la línea Compacto, todavía en desarrollo y pruebas.
+**Estado:** V0.5 desarrollada para evaluación. V0.4 se conserva como punto de retorno. Solo el usuario aprueba una versión oficial.
 
 Esta rama sirve para perfeccionar la presentación y las proporciones de Electrical Work **sin alterar la versión V0.38.3**, que se conserva en la rama `main` como referencia funcional para el trabajo diario.
 
@@ -63,3 +63,8 @@ Cambios en curso sobre \`desarrollo-compacto\`, **no publicados como nueva versi
 VectorCraft es MIT/Apache-2.0, pero las marcas y los recursos de terceros tienen condiciones propias. Se han adoptado **criterios técnicos de calidad vectorial**, sin copiar código ni integrar motores/librerías nuevos. Su motor Rust no forma parte de esta rama. Tampoco se ha integrado Godot ni REA: no se confirmó acceso operativo a REA y sustituir el motor requiere una decisión técnica expresa.
 
 **Seguridad:** V0.4 sigue siendo la versión entregada como referencia en esta línea; \`main\` conserva V0.38.3. No se han generado releases o etiquetas nuevas. La validación automática no equivale a aprobación del usuario.
+
+
+## Entrega V0.5 de prueba
+
+La entrega completa se encuentra en `entregas/Electrical_Work_Compacto_V0_5_Mejora_Grafica_COMPLETA.zip` e incluye el programa y las pruebas de regresión. Conservar la V0.4 y los proyectos originales hasta su validación en Windows.

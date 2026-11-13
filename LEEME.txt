@@ -1,4 +1,4 @@
-ELECTRICAL WORK COMPACTO V0.4 — AJUSTE REAL DE PROPORCIONES
+ELECTRICAL WORK COMPACTO V0.5 — REVISIÓN GRÁFICA DE PRUEBA
 ==========================================================
 
 CÓMO INICIAR EN WINDOWS
@@ -33,3 +33,12 @@ REVISIÓN
 
 Esta versión no altera tu proyecto Bomba_Hidraulica original.
 La prueba final en tu Windows y una impresión física siguen pendientes.
+
+
+NOVEDADES V0.5
+- Refinamiento de protecciones multipolares, guardamotor, barrera fotoeléctrica y sensores NA/NC.
+- Suavizado y terminaciones de líneas, manteniendo puntos de conexión y PDFs vectoriales.
+- Escala compacta 70 %. Requiere Python 3; Pillow es opcional.
+- Pruebas reproducibles: python -m unittest discover -s tests -v
+- Conserva V0.4 y los proyectos originales por separado: V0.5 es una versión de prueba.
+- Requiere validación en Windows e impresión física antes de considerarla oficial.

@@ -423,9 +423,73 @@ def compact_sensor_primitives(kind):
     # tecnológico y al contacto de salida.
     f += [ln(-6,0,2,-9),ln(2,-9,10,0),ln(10,0,2,9),ln(2,9,-6,0),
           ln(2,-6,2,6)]
-    # Contacto real: el NC toca el extremo fijo; NA mantiene luz visible.
-    f += [ln(27,-12,27,-8)]
-    f += [ln(17,9,27 if nc else 23,-8 if nc else -3)]
+    # Pequeño contacto fijo con travesaño: NC cerrado, NA con luz
+    # perceptible incluso en el símbolo compacto impreso a escala.
+    f += [ln(27,-12,27,-7),ln(24,-7,30,-7)]
+    if nc:
+        f += [ln(17,9,27,-7)]
+    else:
+        f += [ln(17,9,22,-1)]
+    return f
+
+
+def compact_multipole_protection(kind):
+    """Dibujo uniforme de protecciones multipolares, sin modificar bornes.
+
+    La vinculación de los contactos es mecánica, nunca un puente eléctrico.
+    Los puntos de conexión permanecen idénticos a los del motor de dibujo.
+    """
+    differential=kind.startswith('differential_')
+    motor=kind=='motor_protector_3p'
+    if kind in ('breaker_2p','differential_2p'):
+        xs=(-10,10)
+    elif kind=='breaker_4p':
+        xs=(-60,-20,20,60)
+    elif kind=='differential_4p':
+        xs=(-30,-10,10,30)
+    else:
+        xs=(-20,0,20)
+    f=[]
+    for x in xs:
+        # Contacto móvil abierto, claramente separado del contacto fijo.
+        f.extend((ln(x,-40,x,-18),ln(x,-18,x+7,6),
+                  ln(x,16,x+7,16),ln(x,16,x,40)))
+        if differential:
+            f.extend((ln(x-3,20,x+3,20),))
+        elif not motor:
+            f.extend((ln(x-4,-22,x+2,-22),))
+    if motor:
+        # Un único cuerpo de protección tripolar compartimentado.
+        f.append(rc(xs[0]-9,12,xs[-1]+9,30))
+        for left_pole,right_pole in zip(xs,xs[1:]):
+            mx=(left_pole+right_pole)/2
+            f.append(ln(mx,12,mx,30))
+        for x in xs:
+            f.extend((ln(x-4,18,x+3,21),ln(x+3,21,x-4,24)))
+    # Un único mando de disparo común lateral.
+    left=xs[0]-22
+    f.extend((rc(left,-11,left+12,7),ln(left+6,-11,left+6,7),
+              dl(left+12,-2,xs[0]-5,-2)))
+    if len(xs)>1 and not motor:
+        f.append(dl(xs[0]+10,25,xs[-1]+10,25))
+    if differential:
+        # Marca funcional orientativa; no certifica IEC 60617.
+        f.extend(arcs(left+6,16,5,4,0,180,24))
+    return f
+
+
+def compact_optoelectric_barrier():
+    """Emisor, receptor y flechas legibles con cinco bornes invariantes."""
+    f=[rc(-24,-19,24,19)]
+    f.extend((ln(-12,-40,-12,-19),ln(12,-40,12,-19),
+              ln(-18,19,-18,40),ln(0,19,0,40),ln(18,19,18,40)))
+    f.extend((ln(-17,-10,-17,11),ln(-17,-10,-6,-10),
+              ln(-6,-10,-12,3),ln(-12,3,-12,11),
+              fr(9,-11,14,-7),ln(11,-7,11,-1),
+              ln(8,-2,11,2),ln(14,-2,11,2),
+              ln(7,14,15,6),ln(15,6,15,15),
+              ln(24,-7,32,-7),ln(28,-10,32,-7),ln(28,-4,32,-7),
+              ln(24,7,32,7),ln(28,4,24,7),ln(28,10,24,7)))
     return f
 
 
@@ -448,6 +512,11 @@ def compact_symbol_primitives(kind):
                 tx(-16,-15,'~',15),tx(17,14,'=',14),
                 tx(-33,-27,'L',10),tx(-33,27,'N',10),
                 tx(33,-27,'+',10),tx(33,27,'−',10)]
+    if kind in ('breaker_2p','breaker_3p','breaker_4p',
+                'differential_2p','differential_4p','motor_protector_3p'):
+        return compact_multipole_protection(kind)
+    if kind=='photoelectric_barrier':
+        return compact_optoelectric_barrier()
     if kind=='thermal_3p':
         return compact_thermal_3p()
     if kind in ('sensor_inductive_no','sensor_inductive_nc',

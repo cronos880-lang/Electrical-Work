@@ -90,18 +90,27 @@ def symbol_bitmap(shapes, zoom, ink='#21364c', stroke=1.55):
         if typ in ('line','dashline'):
             a=coord(*shape[1:3]);b=coord(*shape[3:5])
             if typ=='dashline':_dashed(draw,a,b,linecolor,thickness)
-            else:draw.line((*a,*b),fill=linecolor,width=thickness,joint='curve')
+            else:
+                draw.line((*a,*b),fill=linecolor,width=thickness,joint='curve')
+                # Terminaciones redondeadas: evitan extremos dentados
+                # al reducir los dibujos técnicos compactos.
+                radius=thickness/2
+                for px,py in (a,b):
+                    draw.ellipse((px-radius,py-radius,px+radius,py+radius),
+                                 fill=linecolor)
         elif typ in ('polygon','filledpolygon'):
             pts=[coord(*point) for point in shape[1]]
             if typ=='filledpolygon':
                 draw.polygon(pts,fill=linecolor)
             else:
-                # Unfilled CAD polygons have a transparent inside.
+                # Fondo opaco coherente con el Canvas clásico, el SVG y el PDF:
+                # los cables dibujados detrás no atraviesan las cajas.
+                draw.polygon(pts,fill=(255,255,255,255))
                 draw.line(pts+[pts[0]],fill=linecolor,width=thickness,joint='curve')
         elif typ in ('circle','dot'):
             x,y,r=shape[1:4];cx,cy=coord(x,y);radius=r*zoom*SS
             b=(cx-radius,cy-radius,cx+radius,cy+radius)
-            draw.ellipse(b,fill=linecolor if typ=='dot' else None,
+            draw.ellipse(b,fill=linecolor if typ=='dot' else (255,255,255,255),
                          outline=None if typ=='dot' else linecolor,width=thickness)
         elif typ in ('text','textcenter','textend'):
             _,x,y,label,size,color,*family=shape

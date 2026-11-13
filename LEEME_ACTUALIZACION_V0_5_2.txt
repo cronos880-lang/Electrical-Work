@@ -1,0 +1,44 @@
+ELECTRICAL WORK COMPACTO V0.5.2 — ACTUALIZACIÓN PARCIAL
+======================================================
+ORIGEN: Compacto V0.5.1. No instalar sobre V0.4 ni sobre V0.5 sin aplicar V0.5.1.
+TIPO: solo archivos modificados (no es la instalación completa).
+ESTADO: versión de prueba publicada, pendiente de validación en Windows.
+
+CAMBIOS
+1) Líneas: el desplegable mantiene la línea recta como primer icono y
+   coloca ENMARCAR/SELECCIÓN POR RECUADRO como segunda opción.
+   Después quedan el cable a 90° y el rectángulo.
+2) Enmarcar: mantener pulsado el botón izquierdo y arrastrar sobre el
+   plano dibuja un marco visible; al soltar selecciona los elementos y
+   cables tocados por el recuadro. No desplaza la vista.
+3) Se pueden incluir símbolos parcialmente dentro del marco, y cables
+   que atraviesen el área aunque sus extremos queden fuera.
+4) Finalizada la selección, vuelve al puntero para mover el grupo.
+5) Con el puntero, arrastrar sobre una zona vacía sigue desplazando la
+   hoja ampliada. El zoom con la rueda mantiene su funcionamiento.
+
+INSTALACIÓN SIN PÉRDIDA DE DATOS
+1. Cierra Electrical Work Compacto V0.5.1.
+2. Haz una copia de electrical_work.py por seguridad.
+3. Extrae este ZIP y sustituye únicamente electrical_work.py en la
+   carpeta de tu V0.5.1. NO reemplaces archivos .ework.
+4. Ejecuta INICIAR_WINDOWS.bat de tu instalación habitual.
+5. Para volver atrás, restaura el electrical_work.py de V0.5.1.
+
+ARCHIVOS DEL PARCHE
+- electrical_work.py (único módulo del programa modificado)
+- LEEME_ACTUALIZACION_V0_5_2.txt (estas instrucciones)
+
+COMPROBACIONES
+- GUI real en Linux/Xvfb: desplegable y segundo icono; arrastre del
+  marco al 100 % y al 240 %; selección de 2 símbolos, selección parcial
+  y cable atravesado; vista inmóvil durante enmarcado.
+- La misma prueba con suavizado gráfico activado y desactivado.
+- Zoom con rueda, desplazamiento con puntero, movimiento de grupo y
+  deshacer, y pruebas de apertura/compatibilidad de la línea V0.5.1.
+- Python 3.13: comprobación de sintaxis.
+- Pendiente: ejecución en Windows e impresión real del usuario.
+
+REQUISITOS
+Python >=3.9 y Tkinter; Pillow opcional (ya lo era en V0.5.1).
+Sin cambios de motor, bibliotecas, .ework, PDF o documentación.
